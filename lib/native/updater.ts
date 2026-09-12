@@ -1,21 +1,22 @@
 /**
- * Baixa o APK do release (URL vinda de `checkForUpdate`) e aciona o
- * instalador do sistema via `UpdaterPlugin`
- * (`android/app/src/main/java/com/thiago/diario/UpdaterPlugin.java`).
- * Guarda o arquivo em `Directory.Cache` — é descartável, não faz sentido
- * manter o instalador antigo depois de instalado.
+ * Aciona `UpdaterPlugin.downloadAndInstall`
+ * (`android/app/src/main/java/com/thiago/diario/UpdaterPlugin.java`), que
+ * baixa o APK via `DownloadManager` nativo e abre o instalador do sistema.
+ *
+ * O download é inteiramente nativo — não passa por `fetch` do WebView. A
+ * URL de um asset do GitHub Releases redireciona para o Azure Blob Storage,
+ * que não envia cabeçalho CORS; um `fetch` cross-origin de dentro do
+ * WebView é bloqueado pelo navegador mesmo com a requisição tendo sucesso
+ * no servidor (a primeira versão deste updater tentou isso e falhava
+ * sempre com "Falha ao baixar").
  */
 import { Capacitor, registerPlugin } from "@capacitor/core";
-import { Directory, Filesystem } from "@capacitor/filesystem";
-import { arrayBufferToBase64 } from "@/lib/audio/encoding";
 
 interface UpdaterPluginInterface {
-  installApk(options: { path: string }): Promise<{ opened: "installer" | "settings" }>;
+  downloadAndInstall(options: { url: string }): Promise<{ opened: "installer" | "settings" }>;
 }
 
 const Updater = registerPlugin<UpdaterPluginInterface>("Updater");
-
-const APK_FILENAME = "diario-update.apk";
 
 /**
  * Retorna `"installer"` se o instalador do sistema foi aberto, ou
@@ -28,17 +29,6 @@ export async function downloadAndInstallUpdate(downloadUrl: string): Promise<"in
   if (Capacitor.getPlatform() !== "android") {
     throw new Error("Auto-update só é suportado no Android nativo.");
   }
-
-  const response = await fetch(downloadUrl);
-  if (!response.ok) throw new Error(`Falha ao baixar atualização: HTTP ${response.status}`);
-  const base64 = arrayBufferToBase64(await response.arrayBuffer());
-
-  const { uri } = await Filesystem.writeFile({
-    path: APK_FILENAME,
-    directory: Directory.Cache,
-    data: base64,
-  });
-
-  const { opened } = await Updater.installApk({ path: uri.replace("file://", "") });
+  const { opened } = await Updater.downloadAndInstall({ url: downloadUrl });
   return opened;
 }
