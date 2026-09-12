@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/*
+ * Tema único: Dark Mode sólido aplicado globalmente.
+ * Regra do projeto: não existe troca de tema — proibido usar variantes
+ * `dark:` condicionais ou media queries de esquema de cor.
+ */
+:root {
+  --background: #0b0e14;
+  --surface: #131722;
+  --border: #232936;
+  --foreground: #e6e9f0;
+  --muted: #8b93a7;
+  --accent: #6ea8fe;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
