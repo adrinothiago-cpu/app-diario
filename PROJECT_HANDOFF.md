@@ -6,6 +6,70 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
 
 ---
 
+## Sessão 2026-09-11 (parte 5) — Auto-update funcionando de ponta a ponta
+
+### O que foi feito
+
+Thiago testou o auto-update pela primeira vez em produção: banner apareceu
+("Nova versão disponível: 1.2") corretamente, mas o download falhou
+("Falha ao baixar"). Investigação revelou **4 bugs sucessivos**, cada um
+escondendo o próximo até ser corrigido — todos encontrados testando o
+ciclo completo no emulador (instalar versão N, publicar release N+1,
+clicar Atualizar, repetir):
+
+1. **CORS no fetch**: a URL de um asset do GitHub Release redireciona para
+   o Azure Blob Storage, que não envia `Access-Control-Allow-Origin`. O
+   `fetch()` original (rodando no WebView) sempre falhava — confirmado no
+   `logcat`: "blocked by CORS policy". Corrigido movendo o download inteiro
+   para `DownloadManager` nativo do Android (fora do WebView, não sujeito a
+   CORS). `@capacitor/filesystem` não é mais necessário, removido.
+2. **Crash por `VISIBILITY_HIDDEN`**: essa opção do `DownloadManager`
+   exige a permissão especial `DOWNLOAD_WITHOUT_NOTIFICATION` (não
+   declarada) — lançava `SecurityException` e derrubava o app inteiro
+   (o "Chrome apareceu do nada" no teste era só a activity anterior na
+   pilha, depois do crash). Trocado para `VISIBILITY_VISIBLE_NOTIFY_COMPLETED`
+   + `try/catch` para nunca mais crashar por erro deste plugin.
+3. **`RECEIVER_NOT_EXPORTED` bloqueando o broadcast**: o
+   `ACTION_DOWNLOAD_COMPLETE` vem do processo do sistema
+   (`DownloadManager`), não do próprio app — com `NOT_EXPORTED` o
+   broadcast nunca chegava. O sintoma era sutil: o arquivo já estava
+   baixado com sucesso no disco, mas a Promise do JS ficava pendente para
+   sempre ("Baixando…" eterno). Corrigido para `RECEIVER_EXPORTED`.
+4. **Race condition**: mesmo com `EXPORTED`, o receiver era registrado
+   *depois* de `downloadManager.enqueue()` — em downloads rápidos (APK
+   pequeno, rede boa) o evento disparava e se perdia antes do registro
+   completar. Corrigido invertendo a ordem.
+
+**Confirmado funcionando de ponta a ponta no emulador**: banner → baixa
+(notificação de progresso visível) → detecta que falta permissão de
+"instalar apps desconhecidos" → abre a tela de Ajustes → após habilitar,
+clique em Atualizar de novo → instalador do sistema → "App installed."
+
+### Estado de verificação
+
+- `npm run lint`/`test` (77/77)/`build`: ✅ em cada uma das 4 correções.
+- Ciclo completo validado no emulador (não só componentes isolados como
+  na sessão anterior).
+- **versionCode 9 / versionName "1.3"** — esta build tem tanto a correção
+  do auto-update quanto a correção do microfone da sessão anterior
+  (user-gesture). Copiada para o Drive — Thiago precisa instalar
+  manualmente esta *uma última vez*; a partir dela, o próprio app se
+  atualiza sozinho.
+- Releases `v2` a `v8` no GitHub são builds intermediários de depuração
+  (não removidos, mas irrelevantes) — só `v9` em diante importa.
+- **Ainda não confirmado no celular físico** — nem o auto-update nem a
+  correção do microfone foram testados fora do emulador nesta sessão.
+
+### Pendências
+
+1. Thiago instalar a v9 manualmente e confirmar: (a) microfone grava de
+   verdade, (b) o próprio app se atualiza sozinho a partir daqui.
+2. Pendências antigas seguem abertas: responsividade da guia Tarefas,
+   tela de login, OAuth do Drive, assinatura de release, geolocalização
+   das entradas de diário.
+
+---
+
 ## Sessão 2026-09-11 (parte 4) — Consulta ao Gemini, causa raiz do bug de microfone isolada
 
 ### O que foi feito
