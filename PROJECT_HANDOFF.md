@@ -6,6 +6,59 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
 
 ---
 
+## Sessão 2026-09-11 (parte 4) — Consulta ao Gemini, causa raiz do bug de microfone isolada
+
+### O que foi feito
+
+Thiago pediu para consultar o Gemini (`~/projetos/24-gemini-terminal/gemini.py`)
+sobre o `NotAllowedError` persistente. Resposta apontou 4 hipóteses; duas se
+mostraram relevantes:
+
+1. **User gesture do Chromium**: `getUserMedia` precisa ser a primeira
+   coisa chamada a partir do clique que o originou. O código da sessão
+   anterior fazia `await ensureMicrophonePermission()` (pedido nativo,
+   pode envolver diálogo do sistema) *antes* de `getUserMedia` — esse
+   `await` quebra a "user activation" do clique, e o Chromium passa a
+   tratar a chamada seguinte como não iniciada por gesto do usuário,
+   rejeitando com `NotAllowedError` **mesmo com a permissão concedida**.
+2. **Cache de permissão do WebView por origem**: cogitado que uma negação
+   antiga (antes de qualquer plugin nativo existir) poderia ter ficado
+   persistida para a origem `https://localhost`, ignorando o estado atual.
+
+**Correção aplicada** (ambas eliminadas como causa):
+- `MicrophonePlugin.java` ganhou `checkMicrophonePermission` (lê sem
+  pedir) separado de `requestMicrophonePermission` (pede, pode mostrar
+  diálogo).
+- `app/diario/page.tsx`: UI virou dois passos — botão "Permitir
+  microfone" (chama só o pedido nativo, pode demorar/mostrar diálogo) e,
+  só depois de concedida, o botão normal "Gravar áudio" que chama
+  `getUserMedia` **diretamente**, primeira linha do handler, sem nenhum
+  `await` antes.
+- Testado no emulador com **desinstalação completa** (`adb uninstall`,
+  não só `-r`) para eliminar cache de permissão do WebView como variável.
+
+**Resultado**: mesmo com as duas causas eliminadas, o emulador reproduziu
+o **exato mesmo erro**. Isso muda a conclusão — não é mais só suspeita, é
+a evidência mais forte até agora de que **o emulador realmente não tem
+microfone funcional disponível para o Chromium**, e não um bug de código.
+O Thiago **nunca testou esta versão corrigida no celular físico** (só
+tinha testado a versão anterior, com o bug do user-gesture) — esse é o
+teste que decide se a causa era mesmo só o emulador ou se ainda falta algo.
+
+Corrigido, versionado (`v3` / `versionCode 3` / `versionName "1.2"`),
+publicado no GitHub Release e copiado pro Drive. O Thiago foi dormir antes
+de testar — pendência nº 1 para quando ele acordar.
+
+### Estado de verificação
+
+- `npm run lint`/`test` (77/77)/`build`: ✅.
+- `./gradlew assembleDebug`: ✅.
+- Release `v3` publicado; APK também no Drive.
+- **Ainda não confirmado em hardware real** — é literalmente a única coisa
+  que falta pra fechar esse bug.
+
+---
+
 ## Sessão 2026-09-11 (parte 3) — Repositório GitHub, auto-update, bug do microfone segue aberto
 
 ### O que foi feito
