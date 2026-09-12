@@ -28,6 +28,11 @@ import com.getcapacitor.annotation.PermissionCallback;
 public class MicrophonePlugin extends Plugin {
 
     @PluginMethod
+    public void checkMicrophonePermission(PluginCall call) {
+        resolve(call, getPermissionState("microphone") == PermissionState.GRANTED);
+    }
+
+    @PluginMethod
     public void requestMicrophonePermission(PluginCall call) {
         if (getPermissionState("microphone") == PermissionState.GRANTED) {
             resolve(call, true);

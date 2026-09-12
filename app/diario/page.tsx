@@ -15,7 +15,7 @@ import { arrayBufferToBase64, base64ToBlob } from "@/lib/audio/encoding";
 import { appendEvent, listDecryptedEvents } from "@/lib/events/event-store";
 import { reduceDiaryEntries } from "@/lib/events/diary-store";
 import type { DiaryEntryEvent, DiaryEntryItem } from "@/lib/events/types";
-import { ensureMicrophonePermission } from "@/lib/native/microphone";
+import { checkMicrophonePermission, ensureMicrophonePermission } from "@/lib/native/microphone";
 
 const HUMOR_EMOJI: Record<1 | 2 | 3 | 4 | 5, string> = {
   1: "😞",
@@ -160,6 +160,21 @@ function DiaryContent() {
 }
 
 function RecorderControls({ recorder }: { recorder: ReturnType<typeof useAudioRecorder> }) {
+  if (recorder.hasPermission === false) {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <button
+          type="button"
+          onClick={recorder.requestPermission}
+          className="flex w-fit items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium"
+        >
+          🎙️ Permitir microfone
+        </button>
+        {recorder.error && <span className="text-sm text-red-400">{recorder.error}</span>}
+      </div>
+    );
+  }
+
   if (recorder.error) {
     return (
       <p className="text-sm text-red-400">
@@ -261,10 +276,28 @@ function useAudioRecorder() {
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedSeconds, setRecordedSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // "unknown" enquanto a checagem inicial não termina — trata como "sem
+  // permissão ainda" para não piscar o botão de gravar antes de saber.
+  const [hasPermission, setHasPermission] = useState<boolean | "unknown">("unknown");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    checkMicrophonePermission().then(setHasPermission);
+  }, []);
+
+  // Só pede a permissão nativa — nunca chama getUserMedia aqui. `await`
+  // esperando um diálogo do sistema quebra a "user activation" do clique;
+  // por isso este passo fica isolado do clique que efetivamente grava (ver
+  // comentário em `lib/native/microphone.ts`).
+  async function requestPermission() {
+    setError(null);
+    const granted = await ensureMicrophonePermission();
+    setHasPermission(granted);
+    if (!granted) setError("permissão de microfone negada.");
+  }
 
   const recordedUrl = useMemo(() => {
     if (!recordedBlob) return null;
@@ -287,15 +320,9 @@ function useAudioRecorder() {
   async function start() {
     setError(null);
     try {
-      // No Android, garante a permissão nativa por este canal antes de
-      // acionar getUserMedia — ver comentário em `lib/native/microphone.ts`
-      // sobre por que o fluxo padrão de PermissionRequest do WebView não
-      // era suficiente sozinho.
-      const granted = await ensureMicrophonePermission();
-      if (!granted) {
-        setError("permissão de microfone negada.");
-        return;
-      }
+      // getUserMedia precisa ser a primeira coisa chamada a partir do
+      // clique, sem nenhum `await` de permissão antes — ver comentário em
+      // `lib/native/microphone.ts`.
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = pickSupportedMimeType();
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
@@ -333,5 +360,16 @@ function useAudioRecorder() {
     setRecordedSeconds(0);
   }
 
-  return { recording, recordedBlob, recordedUrl, recordedSeconds, error, start, stop, discard };
+  return {
+    recording,
+    recordedBlob,
+    recordedUrl,
+    recordedSeconds,
+    error,
+    hasPermission,
+    requestPermission,
+    start,
+    stop,
+    discard,
+  };
 }
