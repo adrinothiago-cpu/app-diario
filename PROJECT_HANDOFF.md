@@ -6,6 +6,81 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
 
 ---
 
+## Sessão 2026-09-11 (parte 3) — Repositório GitHub, auto-update, bug do microfone segue aberto
+
+### O que foi feito
+
+- **Projeto virou repositório git** (não existia antes). Push para
+  `github.com/adrinothiago-cpu/app-diario`, **público** — necessário para o
+  auto-update funcionar sem token embutido no app. Remote em HTTPS, e-mail
+  de commit `adrinothiago@gmail.com`, ambos conforme regra global.
+  `.gitignore` ganhou entradas para `android/build`, `.gradle`,
+  `local.properties`, `assets/public` (cópia gerada pelo `cap sync`) e
+  `*.apk`/`*.aab`.
+- **Auto-update via GitHub Releases** (`lib/update/check-update.ts` +
+  `lib/native/updater.ts` + `UpdaterPlugin.java` +
+  `components/update-banner.tsx`): o app consulta
+  `api.github.com/repos/.../releases/latest` (GET público, sem token, sem
+  enviar dado nenhum do usuário — registrado como exceção pontual no
+  `ARCHITECTURE.md`), compara a tag (`vN`) com o `versionCode` local via
+  `App.getInfo()`, e se houver mais nova mostra um banner fixo no topo com
+  botão "Atualizar". Botão baixa o APK (`fetch` + `@capacitor/filesystem`
+  salvando em `Directory.Cache`) e aciona `UpdaterPlugin.installApk`, que
+  abre o instalador do sistema via `FileProvider` — ou, se o Android ainda
+  não autorizou "instalar apps desconhecidos" para o Diário, abre a tela de
+  Ajustes correspondente (não dá pra pular essa etapa manual, é permissão
+  especial do Android, só concedida por interação direta do usuário).
+- **Convenção de release**: tag do GitHub = `v<versionCode>` (ex: `v2`),
+  sempre com o `.apk` de `assembleDebug` anexado como asset. `versionCode`
+  bumpado para `2` / `versionName "1.1"` nesta sessão — é o primeiro
+  release (`v2`) que existe no repositório.
+- `@capacitor/filesystem` instalado (necessário para salvar o APK baixado
+  antes de instalar).
+
+### Bug do microfone — ainda não resolvido
+
+Criei `MicrophonePlugin.java` (pede `RECORD_AUDIO` nativamente, via o
+mesmo mecanismo que `@capacitor/geolocation` já usa) para rodar **antes**
+de `getUserMedia`, eliminando qualquer dúvida sobre timing/canal de
+permissão. Testado no emulador: `dumpsys` confirma
+`RECORD_AUDIO: granted=true` no momento exato da falha, e mesmo assim
+`getUserMedia` segue rejeitando com `NotAllowedError: Permission denied`.
+
+**Isso também reproduziu no celular físico do Thiago (Samsung S25 Ultra)**
+antes desta correção — ainda não confirmado se a versão com
+`MicrophonePlugin` resolve lá (hardware moderno, WebView atualizado via
+Play Store, não deveria ter limitação de microfone real como o emulador
+tinha). É o teste pendente mais importante da próxima sessão. Se persistir
+mesmo com permissão nativa garantida e microfone real, a causa é mais
+estrutural — candidatos a investigar a seguir: `WebSettings` do
+`MainActivity` (falta alguma flag explícita de mídia?), versão mínima do
+Android System WebView no aparelho, ou o esquema `https://localhost` que o
+Capacitor usa por padrão para servir os assets.
+
+### Estado de verificação
+
+- `npm run lint`/`test` (77/77)/`build`: ✅ todos zerados.
+- `./gradlew assembleDebug`: ✅ `BUILD SUCCESSFUL`.
+- Release `v2` publicado em
+  `github.com/adrinothiago-cpu/app-diario/releases/tag/v2` com o APK
+  anexado; API pública confirmada respondendo (`curl` manual).
+- APK enviada também para o Drive (ainda manual desta vez — o celular do
+  Thiago está na v1, sem o mecanismo de auto-update; a promessa de
+  "atualiza sozinho" só vale a partir da próxima versão).
+- **Não validado**: o banner de update em si nunca foi visto rodando (nem
+  emulador nem celular) — só os componentes individuais (API do GitHub,
+  build) foram conferidos separadamente.
+
+### Pendências
+
+1. **Bug do microfone no celular físico** — prioridade máxima.
+2. Validar o fluxo completo de auto-update na prática (banner aparecendo,
+   download, tela de "permitir fontes desconhecidas", instalação).
+3. Pendências antigas: responsividade da guia Tarefas, tela de login, OAuth
+   do Drive, assinatura de release, geolocalização das entradas de diário.
+
+---
+
 ## Sessão 2026-09-11 (parte 2) — Módulo Diário: entradas com voz (áudio bruto, sem transcrição)
 
 ### O que foi feito

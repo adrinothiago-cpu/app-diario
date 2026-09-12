@@ -20,6 +20,13 @@ imutáveis; mudanças exigem decisão explícita do dono do projeto registrada n
 - **Persistência local**: IndexedDB via wrapper leve próprio (sem ORM pesado).
 - **Remoto**: Google Drive REST API, apenas `/appDataFolder`, apenas payloads
   cifrados. Sem banco relacional hospedado, sem Vercel/Node em produção.
+- **Exceção pontual (decisão do Thiago, 2026-09-11)**: auto-update consulta a
+  API pública do GitHub (`lib/update/check-update.ts`) para saber a versão
+  mais recente e baixar o APK do release — único tráfego de rede do app que
+  não é sync com o Drive. GET anônimo, sem autenticação, sem enviar nenhum
+  dado do usuário; só pergunta "qual a versão mais nova?". Repositório:
+  `github.com/adrinothiago-cpu/app-diario` (público — precisa ser público
+  para a checagem funcionar sem token embutido no app).
 
 ## Segurança (inegociável)
 
