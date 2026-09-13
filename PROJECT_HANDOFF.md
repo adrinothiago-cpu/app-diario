@@ -6,6 +6,77 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
 
 ---
 
+## Sessão 2026-09-13 — Transcrição de voz via Gemini API
+
+### O que foi feito
+
+Depois de confirmar a gravação de voz funcionando (sessão anterior), o
+Thiago pediu transcrição. Isso reabriu a decisão de "não transcrever" da
+sessão de bootstrap da feature — dessa vez ele decidiu abrir a exceção
+conscientemente, depois de eu apontar os dois custos reais: (1) quebra do
+zero-knowledge (o áudio sai do aparelho) e (2) o tier gratuito do Google AI
+Studio permite ao Google usar o conteúdo enviado para treinar produtos
+deles (diferente do tier pago/Vertex AI). Decisão registrada em
+`ARCHITECTURE.md`.
+
+- **Segurança da chave**: ele perguntou se colar a chave de API no chat
+  configurava risco — sim, e por isso ela nunca transitou por mim. Um
+  campo de configuração dentro do próprio app (link "Configurar
+  transcrição" no Diário) é onde ele cola a chave; fica cifrada com o
+  mesmo AES-GCM 256 do vault (evento `settings_updated`, append-only —
+  trocar a chave é só gravar um evento novo), nunca em texto plano, nunca
+  no código-fonte do repositório (que é público).
+- **Descoberta de API muito recente**: a doc pública (`ai.google.dev`) já
+  não usa mais o formato antigo `generateContent`/`candidates` que eu
+  conhecia — é uma API nova chamada "Interactions"
+  (`/v1beta/interactions`, payload `{model, input: [{type, text|data}]}`).
+  Como um `WebFetch` inicial trouxe detalhes estranhos (nome de modelo e
+  endpoint que pareciam errados), não confiei cegamente: baixei o HTML
+  bruto da doc e extraí os exemplos de código reais via grep/python antes
+  de implementar, em vez de confiar no resumo de um modelo pequeno sobre
+  uma API lançada depois do meu treinamento.
+- **Schema novo**: `SettingsUpdatedEvent` (chave de API) e
+  `DiaryTranscriptionAddedEvent` (delta sobre uma entrada existente, por
+  `entryId` — não edita o evento `diary_entry` original, mesmo princípio
+  de imutabilidade do log). `lib/transcription/gemini.ts` faz a chamada
+  HTTP; parsing da resposta é deliberadamente tolerante (tenta
+  `output_text`, senão varre `steps[].content[]`) porque a doc pública não
+  expõe o schema de resposta completo — **ainda não testado com uma chave
+  real**, então o formato de parsing pode precisar de ajuste no primeiro
+  uso de verdade.
+- UI: botão "Transcrever" aparece só em entradas com áudio, sem
+  transcrição ainda, e com chave configurada. Corrigido durante o teste
+  visual um bug de layout (botões "Salvar"/"Cancelar" cortados em tela
+  estreita — iam na mesma linha do input, agora ficam embaixo).
+
+### Estado de verificação
+
+- `npm run lint`/`test` (89/89, 13 novos)/`build`: ✅.
+- **Validado visualmente no emulador**: campo de configuração aparece,
+  layout correto, botão "Transcrever" ausente corretamente quando não há
+  chave configurada.
+- **Não validado**: a chamada real à Gemini API — não tenho a chave (por
+  desenho, ela nunca deveria passar por mim) e não configurei uma real no
+  emulador para testar de ponta a ponta. Isso é a pendência mais
+  importante: o parsing de resposta em `extractOutputText` pode falhar no
+  primeiro teste real, precisa de olho no `transcribeError` mostrado na UI
+  se isso acontecer.
+- `versionCode 11` / `versionName "1.5"`, release `v11` publicado no
+  GitHub e copiado para o Drive.
+
+### Pendências
+
+1. Thiago colar a chave real no app, testar "Transcrever" numa entrada com
+   áudio, e reportar se `extractOutputText` conseguiu extrair o texto ou
+   se o formato de resposta real da Interactions API é diferente do
+   esperado (nesse caso, preciso ver o corpo bruto da resposta — a
+   mensagem de erro na UI inclui um trecho do JSON recebido para isso).
+2. Pendências antigas seguem abertas: responsividade da guia Tarefas,
+   tela de login, OAuth do Drive, assinatura de release, geolocalização
+   das entradas de diário.
+
+---
+
 ## Sessão 2026-09-12 — Causa raiz do bug do microfone: MODIFY_AUDIO_SETTINGS
 
 ### O que foi feito
