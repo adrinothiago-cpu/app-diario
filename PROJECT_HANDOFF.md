@@ -32,12 +32,15 @@ Implementação da feature de insights de humor aprovada no plano (`~/.claude/pl
 6. **Documentação (`ARCHITECTURE.md`)**:
    - Registrada a exceção de zero-knowledge ampliada para envio do texto de até 30 entradas sob demanda para a Gemini API e persistência append-only reduzida ao mais recente.
 
-### Estado de verificação
+### Atualização pós-teste: Tratamento de alta demanda (erro 500 no tier gratuito)
 
-- `npm run lint`: ✅ zerado (0 erros, 0 avisos).
-- `npm run test`: ✅ 109/109 testes passando em 16 arquivos.
-- `npm run build`: ✅ export estático limpo gerando rota `/metricas`.
-- **Limitação mantida**: a chamada real à Gemini API depende da chave que o usuário configura no próprio app; testes unitários validam o payload, parsing e mocks HTTP.
+No primeiro teste real, `gemini-3.8-flash` retornou erro 500 (`"gemini-3.8-flash is currently experiencing high demand, spikes in demand are usually temporary. Please try again later."`) por ser o modelo mais recente e estar sob saturação no tier gratuito do Google AI Studio.
+
+Ajustes aplicados em `lib/gemini/client.ts`:
+- **Modelos com fallback automático**: prioritariamente usa `gemini-2.5-flash` (modelo de produção GA, alta capacidade e estabilidade), com fallback para `gemini-flash-latest` e `gemini-3.8-flash` se houver erro 500/503/429 ou menção a alta demanda.
+- **Mensagem amigável**: erro de sobrecarga agora exibe texto claro ("O modelo Gemini está com alta demanda temporária nos servidores do Google. Tente novamente em instantes.") em vez de JSON cru na UI.
+- Testes ampliados em `lib/gemini/client.test.ts` (113/113 testes passando).
+- `versionCode 13` / `versionName "1.7"`.
 
 ---
 

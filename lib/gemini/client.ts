@@ -5,13 +5,16 @@
  * texto de saída. Usado por `lib/transcription/gemini.ts` (áudio → texto)
  * e `lib/insights/gemini-insights.ts` (texto → texto).
  *
- * A API é recente o suficiente para não haver garantia de que o formato
- * de resposta documentado hoje é estável — `extractOutputText` é
- * deliberadamente tolerante a variações razoáveis da estrutura, em vez de
- * assumir um único caminho fixo.
+ * Modelos: usa `gemini-2.5-flash` como padrão por estabilidade e alta capacidade
+ * no tier gratuito, com fallback automático para `gemini-flash-latest` e
+ * `gemini-3.8-flash` se houver pico de demanda temporária nos servidores do Google.
  */
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
-const MODEL = "gemini-3.8-flash";
+export const CANDIDATE_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-flash-latest",
+  "gemini-3.8-flash",
+] as const;
 
 export type InteractionInputBlock =
   | { type: "text"; text: string }
@@ -34,32 +37,77 @@ interface InteractionResponse {
 
 export class GeminiCallError extends Error {}
 
+export function parseErrorMessage(status: number, rawBody: string): string {
+  try {
+    const parsed = JSON.parse(rawBody);
+    const msg = parsed?.error?.message;
+    if (typeof msg === "string") {
+      if (msg.includes("high demand") || msg.includes("spikes in demand")) {
+        return "O modelo Gemini está com alta demanda temporária nos servidores do Google. Tente novamente em instantes.";
+      }
+      return msg;
+    }
+  } catch {
+    // corpo não é JSON válido
+  }
+  return `Gemini API respondeu ${status}: ${rawBody.slice(0, 300)}`;
+}
+
 export async function callGeminiInteraction(
   apiKey: string,
   input: InteractionInputBlock[],
 ): Promise<string> {
-  const response = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: {
-      "x-goog-api-key": apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ model: MODEL, input }),
-  });
+  let lastError: Error | null = null;
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new GeminiCallError(`Gemini API respondeu ${response.status}: ${body.slice(0, 300)}`);
+  for (let i = 0; i < CANDIDATE_MODELS.length; i++) {
+    const model = CANDIDATE_MODELS[i];
+    try {
+      const response = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: {
+          "x-goog-api-key": apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ model, input }),
+      });
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        const isDemandOrServerError =
+          response.status >= 500 ||
+          response.status === 429 ||
+          body.includes("high demand") ||
+          body.includes("spikes in demand");
+
+        const errorMsg = parseErrorMessage(response.status, body);
+
+        // Se houver pico de demanda ou erro temporário e ainda temos outros modelos, tenta o próximo
+        if (isDemandOrServerError && i < CANDIDATE_MODELS.length - 1) {
+          lastError = new GeminiCallError(errorMsg);
+          continue;
+        }
+
+        throw new GeminiCallError(errorMsg);
+      }
+
+      const data: InteractionResponse = await response.json();
+      const text = extractOutputText(data);
+      if (text === null) {
+        throw new GeminiCallError(
+          `Não consegui extrair o texto da resposta da API. Corpo recebido: ${JSON.stringify(data).slice(0, 500)}`,
+        );
+      }
+      return text.trim();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      // Se não for GeminiCallError ou se for o último modelo, propaga o erro
+      if (i === CANDIDATE_MODELS.length - 1 || !(err instanceof GeminiCallError)) {
+        throw err;
+      }
+    }
   }
 
-  const data: InteractionResponse = await response.json();
-  const text = extractOutputText(data);
-  if (text === null) {
-    throw new GeminiCallError(
-      `Não consegui extrair o texto da resposta da API. Corpo recebido: ${JSON.stringify(data).slice(0, 500)}`,
-    );
-  }
-  return text.trim();
+  throw lastError ?? new GeminiCallError("Falha ao comunicar com a Gemini API.");
 }
 
 /**

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { callGeminiInteraction, GeminiCallError } from "./client";
+import { callGeminiInteraction, GeminiCallError, parseErrorMessage } from "./client";
 
 function mockFetchOnce(body: unknown, ok = true, status = 200) {
   vi.stubGlobal(
@@ -51,6 +51,60 @@ describe("callGeminiInteraction", () => {
     );
   });
 
+  it("faz fallback para o próximo modelo quando o primeiro falha com alta demanda (500)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: {
+                message: "gemini-2.5-flash is currently experiencing high demand",
+                code: "api_error",
+              },
+            }),
+          ),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ output_text: "resposta do modelo fallback" }),
+        text: () => Promise.resolve(""),
+      });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await callGeminiInteraction("minha-chave", [{ type: "text", text: "oi" }]);
+    expect(result).toBe("resposta do modelo fallback");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // Primeiro tentou o modelo default, depois o fallback
+    const firstCallBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const secondCallBody = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(firstCallBody.model).toBe("gemini-2.5-flash");
+    expect(secondCallBody.model).toBe("gemini-flash-latest");
+  });
+
+  it("formata mensagem amigável quando todos os modelos falham com alta demanda", async () => {
+    const highDemandError = JSON.stringify({
+      error: { message: "spikes in demand are usually temporary" },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve(highDemandError),
+      }),
+    );
+
+    await expect(callGeminiInteraction("key", [{ type: "text", text: "oi" }])).rejects.toThrow(
+      /alta demanda temporária nos servidores do Google/i,
+    );
+  });
+
   it("envia o payload no formato esperado pela Interactions API", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -74,5 +128,21 @@ describe("callGeminiInteraction", () => {
     const [, options] = fetchMock.mock.calls[0];
     const body = JSON.parse(options.body);
     expect(body.input).toEqual([{ type: "audio", data: "QUJD", mime_type: "audio/webm" }]);
+  });
+});
+
+describe("parseErrorMessage", () => {
+  it("converte mensagem de high demand para texto amigável", () => {
+    const raw = JSON.stringify({
+      error: { message: "gemini-3.8-flash is currently experiencing high demand, spikes in demand" },
+    });
+    expect(parseErrorMessage(500, raw)).toContain("alta demanda temporária");
+  });
+
+  it("mantém a mensagem original se for outro erro da API", () => {
+    const raw = JSON.stringify({
+      error: { message: "API key expired" },
+    });
+    expect(parseErrorMessage(403, raw)).toBe("API key expired");
   });
 });
