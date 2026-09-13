@@ -20,9 +20,10 @@ describe("callGeminiInteraction", () => {
 
   it("extrai o texto via output_text quando presente", async () => {
     mockFetchOnce({ output_text: "  resposta aqui  " });
-    expect(await callGeminiInteraction("key", [{ type: "text", text: "oi" }])).toBe(
-      "resposta aqui",
-    );
+    expect(await callGeminiInteraction("key", [{ type: "text", text: "oi" }])).toEqual({
+      text: "resposta aqui",
+      modelUsed: "gemini-3.8-flash",
+    });
   });
 
   it("extrai o texto navegando por steps[].content[] quando output_text não existe", async () => {
@@ -32,9 +33,10 @@ describe("callGeminiInteraction", () => {
         { type: "model_output", content: [{ type: "text", text: "parte 2" }] },
       ],
     });
-    expect(await callGeminiInteraction("key", [{ type: "text", text: "oi" }])).toBe(
-      "parte 1 parte 2",
-    );
+    expect(await callGeminiInteraction("key", [{ type: "text", text: "oi" }])).toEqual({
+      text: "parte 1 parte 2",
+      modelUsed: "gemini-3.8-flash",
+    });
   });
 
   it("lança GeminiCallError quando a resposta HTTP não é ok", async () => {
@@ -61,7 +63,7 @@ describe("callGeminiInteraction", () => {
           Promise.resolve(
             JSON.stringify({
               error: {
-                message: "gemini-2.5-flash is currently experiencing high demand",
+                message: "gemini-3.8-flash is currently experiencing high demand",
                 code: "api_error",
               },
             }),
@@ -77,14 +79,17 @@ describe("callGeminiInteraction", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await callGeminiInteraction("minha-chave", [{ type: "text", text: "oi" }]);
-    expect(result).toBe("resposta do modelo fallback");
+    expect(result).toEqual({
+      text: "resposta do modelo fallback",
+      modelUsed: "gemini-3.7-flash",
+    });
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
-    // Primeiro tentou o modelo default, depois o fallback
+    // Primeiro tentou gemini-3.8-flash, depois gemini-3.7-flash
     const firstCallBody = JSON.parse(fetchMock.mock.calls[0][1].body);
     const secondCallBody = JSON.parse(fetchMock.mock.calls[1][1].body);
-    expect(firstCallBody.model).toBe("gemini-2.5-flash");
-    expect(secondCallBody.model).toBe("gemini-flash-latest");
+    expect(firstCallBody.model).toBe("gemini-3.8-flash");
+    expect(secondCallBody.model).toBe("gemini-3.7-flash");
   });
 
   it("formata mensagem amigável quando todos os modelos falham com alta demanda", async () => {

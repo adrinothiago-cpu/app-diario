@@ -92,8 +92,8 @@ describe("parseInsightsResponse", () => {
     tendencia: "melhorando",
   });
 
-  it("faz parse de JSON válido e preenche baseadoEmEntradas", () => {
-    const res = parseInsightsResponse(validJson, 15);
+  it("faz parse de JSON válido e preenche baseadoEmEntradas e modeloUsado", () => {
+    const res = parseInsightsResponse(validJson, 15, "gemini-3.8-flash");
     expect(res).toEqual({
       resumoGeral: "Semana produtiva com estabilidade.",
       gatilhosPositivos: ["Treino pela manhã", "Leitura"],
@@ -101,6 +101,7 @@ describe("parseInsightsResponse", () => {
       sugestoesMelhoria: ["Pausas regulares"],
       tendencia: "melhorando",
       baseadoEmEntradas: 15,
+      modeloUsado: "gemini-3.8-flash",
     });
   });
 
@@ -159,7 +160,7 @@ describe("generateMoodInsights", () => {
     );
   });
 
-  it("executa chamada HTTP à Gemini API e retorna objeto parseado", async () => {
+  it("executa chamada HTTP à Gemini API e retorna objeto parseado com modeloUsado", async () => {
     const mockResponse = {
       output_text: JSON.stringify({
         resumoGeral: "Clima bom e foco.",
@@ -188,6 +189,7 @@ describe("generateMoodInsights", () => {
       sugestoesMelhoria: ["Beber água"],
       tendencia: "sem_dados_suficientes",
       baseadoEmEntradas: 1,
+      modeloUsado: "gemini-3.8-flash",
     });
   });
 });

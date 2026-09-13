@@ -156,6 +156,7 @@ export interface MoodInsights {
   sugestoesMelhoria: string[];
   tendencia: MoodTrend;
   baseadoEmEntradas: number;
+  modeloUsado?: string;
 }
 
 /**
@@ -171,6 +172,7 @@ export interface MoodInsightsUpdatedEvent {
   sugestoesMelhoria: string[];
   tendencia: MoodTrend;
   baseadoEmEntradas: number;
+  modeloUsado?: string;
 }
 
 export type AppEvent =

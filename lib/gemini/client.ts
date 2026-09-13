@@ -11,10 +11,24 @@
  */
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
 export const CANDIDATE_MODELS = [
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-3.1-pro-preview",
+  "gemini-3.1-flash-lite",
+  "gemini-2.5-pro",
   "gemini-2.5-flash",
   "gemini-flash-latest",
-  "gemini-3.8-flash",
+  "gemini-2.5-flash-lite",
 ] as const;
+
+export type CandidateModel = (typeof CANDIDATE_MODELS)[number];
+
+export interface GeminiInteractionResult {
+  text: string;
+  modelUsed: string;
+}
 
 export type InteractionInputBlock =
   | { type: "text"; text: string }
@@ -56,7 +70,7 @@ export function parseErrorMessage(status: number, rawBody: string): string {
 export async function callGeminiInteraction(
   apiKey: string,
   input: InteractionInputBlock[],
-): Promise<string> {
+): Promise<GeminiInteractionResult> {
   let lastError: Error | null = null;
 
   for (let i = 0; i < CANDIDATE_MODELS.length; i++) {
@@ -73,41 +87,55 @@ export async function callGeminiInteraction(
 
       if (!response.ok) {
         const body = await response.text().catch(() => "");
-        const isDemandOrServerError =
-          response.status >= 500 ||
-          response.status === 429 ||
-          body.includes("high demand") ||
-          body.includes("spikes in demand");
-
         const errorMsg = parseErrorMessage(response.status, body);
 
-        // Se houver pico de demanda ou erro temporário e ainda temos outros modelos, tenta o próximo
-        if (isDemandOrServerError && i < CANDIDATE_MODELS.length - 1) {
+        // Erro fatal de credencial: chave explicitamente inválida falha imediatamente
+        const isAuthInvalidKey =
+          (response.status === 401 || response.status === 403) &&
+          (body.includes("API_KEY_INVALID") ||
+            body.includes("API key not valid") ||
+            body.toLowerCase().includes("invalid api key"));
+
+        if (isAuthInvalidKey) {
+          throw new GeminiCallError(errorMsg);
+        }
+
+        // Se houver mais modelos na lista, tenta o próximo
+        if (i < CANDIDATE_MODELS.length - 1) {
           lastError = new GeminiCallError(errorMsg);
           continue;
         }
 
-        throw new GeminiCallError(errorMsg);
+        throw new GeminiCallError(
+          `Todos os modelos Gemini testados falharam. Último erro (${model}): ${errorMsg}`,
+        );
       }
 
       const data: InteractionResponse = await response.json();
       const text = extractOutputText(data);
       if (text === null) {
         throw new GeminiCallError(
-          `Não consegui extrair o texto da resposta da API. Corpo recebido: ${JSON.stringify(data).slice(0, 500)}`,
+          `Não consegui extrair o texto da resposta da API (${model}). Corpo recebido: ${JSON.stringify(data).slice(0, 500)}`,
         );
       }
-      return text.trim();
+      return { text: text.trim(), modelUsed: model };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
-      // Se não for GeminiCallError ou se for o último modelo, propaga o erro
-      if (i === CANDIDATE_MODELS.length - 1 || !(err instanceof GeminiCallError)) {
+      // Se for erro de chave inválida, propaga de imediato
+      if (err instanceof GeminiCallError && err.message.toLowerCase().includes("invalid")) {
         throw err;
+      }
+      // Se ainda temos modelos candidatos, continua a iteração
+      if (i < CANDIDATE_MODELS.length - 1) {
+        continue;
       }
     }
   }
 
-  throw lastError ?? new GeminiCallError("Falha ao comunicar com a Gemini API.");
+  throw (
+    lastError ??
+    new GeminiCallError("Todos os modelos Gemini falharam. Tente novamente em instantes.")
+  );
 }
 
 /**

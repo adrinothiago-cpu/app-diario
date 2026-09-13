@@ -32,15 +32,24 @@ Implementação da feature de insights de humor aprovada no plano (`~/.claude/pl
 6. **Documentação (`ARCHITECTURE.md`)**:
    - Registrada a exceção de zero-knowledge ampliada para envio do texto de até 30 entradas sob demanda para a Gemini API e persistência append-only reduzida ao mais recente.
 
-### Atualização pós-teste: Tratamento de alta demanda (erro 500 no tier gratuito)
+### Atualização pós-teste: Cascata do melhor ao mais leve e reporte do modelo utilizado
 
-No primeiro teste real, `gemini-3.8-flash` retornou erro 500 (`"gemini-3.8-flash is currently experiencing high demand, spikes in demand are usually temporary. Please try again later."`) por ser o modelo mais recente e estar sob saturação no tier gratuito do Google AI Studio.
+Quando a Gemini API retorna erro de alta demanda temporária (500/503/429/overload) em um modelo, o cliente agora percorre sequencialmente uma lista ordenada do modelo mais recente/capaz até o mais leve:
+1. `gemini-3.8-flash`
+2. `gemini-3.7-flash`
+3. `gemini-3.6-flash`
+4. `gemini-3.5-flash`
+5. `gemini-3.1-pro-preview`
+6. `gemini-3.1-flash-lite`
+7. `gemini-2.5-pro`
+8. `gemini-2.5-flash`
+9. `gemini-flash-latest`
+10. `gemini-2.5-flash-lite`
 
-Ajustes aplicados em `lib/gemini/client.ts`:
-- **Modelos com fallback automático**: prioritariamente usa `gemini-2.5-flash` (modelo de produção GA, alta capacidade e estabilidade), com fallback para `gemini-flash-latest` e `gemini-3.8-flash` se houver erro 500/503/429 ou menção a alta demanda.
-- **Mensagem amigável**: erro de sobrecarga agora exibe texto claro ("O modelo Gemini está com alta demanda temporária nos servidores do Google. Tente novamente em instantes.") em vez de JSON cru na UI.
-- Testes ampliados em `lib/gemini/client.test.ts` (113/113 testes passando).
-- `versionCode 13` / `versionName "1.7"`.
+- **Fallback automático transparente**: avança de modelo em caso de 5xx, 429 ou menções de sobrecarga de demanda. Chaves comprovadamente inválidas (401/403 de autenticação) falham de imediato sem desperdício de chamadas.
+- **Identificação do modelo**: `callGeminiInteraction` retorna `{ text, modelUsed }`. `MoodInsights` e `MoodInsightsUpdatedEvent` agora persistem `modeloUsado`.
+- **UI (`app/metricas/page.tsx`)**: exibe uma tag `⚡ Modelo: <nome>` no card de insights indicando qual modelo gerou a análise. Mensagem de erro amigável só é apresentada se **todos** os modelos candidatos falharem.
+- 113 testes automatizados passando, lint zerado e APK compilado com sucesso.
 
 ---
 

@@ -89,7 +89,11 @@ Responda OBRIGATORIAMENTE em JSON estrito (sem markdown, sem cercas de código, 
  * Faz o parsing estrito da resposta JSON da LLM.
  * Remove cercas ```json ... ``` se o modelo tiver incluído, mas exige validação total do shape.
  */
-export function parseInsightsResponse(raw: string, baseadoEmEntradas = 0): MoodInsights {
+export function parseInsightsResponse(
+  raw: string,
+  baseadoEmEntradas = 0,
+  modeloUsado?: string,
+): MoodInsights {
   let cleaned = raw.trim();
   if (cleaned.startsWith("```")) {
     cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
@@ -140,6 +144,7 @@ export function parseInsightsResponse(raw: string, baseadoEmEntradas = 0): MoodI
     sugestoesMelhoria,
     tendencia,
     baseadoEmEntradas,
+    ...(modeloUsado ? { modeloUsado } : {}),
   };
 }
 
@@ -158,6 +163,6 @@ export async function generateMoodInsights(
   }
 
   const prompt = buildInsightsPrompt(selected, previousInsights);
-  const rawResponse = await callGeminiInteraction(apiKey, [{ type: "text", text: prompt }]);
-  return parseInsightsResponse(rawResponse, selected.length);
+  const result = await callGeminiInteraction(apiKey, [{ type: "text", text: prompt }]);
+  return parseInsightsResponse(result.text, selected.length, result.modelUsed);
 }

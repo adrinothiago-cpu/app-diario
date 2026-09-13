@@ -105,6 +105,7 @@ function MetricasContent() {
         sugestoesMelhoria: generated.sugestoesMelhoria,
         tendencia: generated.tendencia,
         baseadoEmEntradas: generated.baseadoEmEntradas,
+        modeloUsado: generated.modeloUsado,
       });
       await refresh();
     } catch (err) {
@@ -169,10 +170,20 @@ function MetricasContent() {
               <span>{TREND_META[insights.tendencia].icon}</span>
               <span>Tendência: {TREND_META[insights.tendencia].label}</span>
             </div>
-            <span className="text-xs text-muted">
-              Baseado nas {insights.baseadoEmEntradas}{" "}
-              {insights.baseadoEmEntradas === 1 ? "entrada" : "entradas"} mais recentes
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted">
+                Baseado nas {insights.baseadoEmEntradas}{" "}
+                {insights.baseadoEmEntradas === 1 ? "entrada" : "entradas"} mais recentes
+              </span>
+              {insights.modeloUsado && (
+                <span className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5 text-[11px] text-muted">
+                  <span>⚡</span>
+                  <span>
+                    Modelo: <strong className="font-medium text-foreground">{insights.modeloUsado}</strong>
+                  </span>
+                </span>
+              )}
+            </div>
           </div>
 
           <div>

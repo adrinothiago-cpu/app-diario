@@ -18,6 +18,7 @@ export function reduceMoodInsights(events: DecryptedEvent[]): MoodInsights | nul
         sugestoesMelhoria: event.sugestoesMelhoria,
         tendencia: event.tendencia,
         baseadoEmEntradas: event.baseadoEmEntradas,
+        modeloUsado: event.modeloUsado,
       };
     }
   }

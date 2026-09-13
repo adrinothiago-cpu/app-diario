@@ -28,6 +28,7 @@ describe("reduceMoodInsights", () => {
         sugestoesMelhoria: ["Meditar"],
         tendencia: "melhorando",
         baseadoEmEntradas: 10,
+        modeloUsado: "gemini-3.8-flash",
         id: "e2",
         createdAt: 2,
       },
@@ -40,6 +41,7 @@ describe("reduceMoodInsights", () => {
       sugestoesMelhoria: ["Meditar"],
       tendencia: "melhorando",
       baseadoEmEntradas: 10,
+      modeloUsado: "gemini-3.8-flash",
     });
   });
 

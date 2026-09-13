@@ -23,10 +23,11 @@ export async function transcribeAudio(
   mimeType: string,
 ): Promise<string> {
   try {
-    return await callGeminiInteraction(apiKey, [
+    const result = await callGeminiInteraction(apiKey, [
       { type: "text", text: PROMPT },
       { type: "audio", data: audioBase64, mime_type: mimeType },
     ]);
+    return result.text;
   } catch (err) {
     if (err instanceof GeminiCallError) throw new TranscriptionError(err.message);
     throw err;
