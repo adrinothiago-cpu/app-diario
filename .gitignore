@@ -52,3 +52,6 @@ android/.idea/
 android/app/src/main/assets/public/
 *.apk
 *.aab
+
+# Android Studio (IDE local, não versionado)
+.idea/
