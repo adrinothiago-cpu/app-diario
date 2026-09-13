@@ -46,6 +46,7 @@
 
     <!-- Gravação de voz das entradas do diário (MediaRecorder/getUserMedia via WebView) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <!-- Auto-update: instalar o APK baixado do GitHub Releases (fora da Play Store) -->
