@@ -22,10 +22,13 @@ export default function Home() {
           <h2 className="font-medium">Diário</h2>
           <p className="text-sm text-muted">Entradas com texto, humor e voz.</p>
         </Link>
-        <section className="rounded-xl border border-border bg-surface p-4">
+        <Link
+          href="/metricas"
+          className="rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent"
+        >
           <h2 className="font-medium">Métricas</h2>
-          <p className="text-sm text-muted">Visualizações de dados — em breve.</p>
-        </section>
+          <p className="text-sm text-muted">Insights e evolução do humor com Gemini.</p>
+        </Link>
       </div>
     </main>
   );

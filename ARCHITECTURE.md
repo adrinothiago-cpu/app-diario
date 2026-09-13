@@ -30,16 +30,25 @@ imutáveis; mudanças exigem decisão explícita do dono do projeto registrada n
   `github.com/adrinothiago-cpu/app-diario` (público — precisa ser público
   para a checagem funcionar sem token embutido no app).
 - **Exceção de zero-knowledge (decisão do Thiago, 2026-09-13)**: transcrição
-  de áudio via Gemini API (`lib/transcription/gemini.ts`) — a única
-  funcionalidade do app que manda **conteúdo do usuário** (o áudio de uma
-  entrada de diário) para um servidor de terceiro. É ação manual, por
-  entrada, nunca automática — sem clicar em "Transcrever" o áudio nunca sai
-  do aparelho. Chave usada é do **tier gratuito** do Google AI Studio;
-  ciente de que esse tier permite ao Google usar o conteúdo enviado para
-  treinar/melhorar produtos deles (diferente do tier pago/Vertex AI, que tem
-  garantia contratual de não retenção). A chave de API em si fica cifrada
+  de áudio via Gemini API (`lib/transcription/gemini.ts`) — manda
+  **conteúdo do usuário** (o áudio de uma entrada de diário) para um servidor
+  de terceiro. É ação manual, por entrada, nunca automática — sem clicar em
+  "Transcrever" o áudio nunca sai do aparelho. Chave usada é do **tier gratuito**
+  do Google AI Studio; ciente de que esse tier permite ao Google usar o conteúdo
+  enviado para treinar/melhorar produtos deles (diferente do tier pago/Vertex AI,
+  que tem garantia contratual de não retenção). A chave de API em si fica cifrada
   localmente com o mesmo AES-GCM 256 do vault (evento `settings_updated`) —
   nunca em texto plano no disco, nunca no código-fonte (o repo é público).
+- **Exceção de zero-knowledge ampliada — Insights de Humor (decisão do Thiago, 2026-09-13)**:
+  análise evolutiva de humor via Gemini API (`lib/insights/gemini-insights.ts`,
+  página `/metricas`). Expande o escopo anterior: em vez de apenas o áudio de uma
+  entrada pontual, envia o texto (escrito e/ou transcrito) de até 30 entradas
+  recentes de uma vez para extrair padrões de humor, gatilhos positivos/negativos
+  e sugestões de melhoria. Assim como a transcrição, é estritamente manual (só roda
+  ao clicar em "Atualizar insights") e usa a mesma chave da Gemini API cifrada no
+  vault. O resultado é persistido como evento append-only (`mood_insights_updated`)
+  e reduzido sempre para a análise mais recente (`lib/events/mood-insights-store.ts`)
+  — o log cresce, mas o estado exibido evolui sem acumular listas infinitas.
 
 ## Segurança (inegociável)
 

@@ -6,6 +6,41 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
 
 ---
 
+## Sessão 2026-09-13 (parte 2) — Feature "Insights de humor" via Gemini implementada
+
+### O que foi feito
+
+Implementação da feature de insights de humor aprovada no plano (`~/.claude/plans/ok-queria-fazer-algo-synthetic-cerf.md`), expandindo a integração com Gemini API para além da transcrição:
+
+1. **Cliente HTTP compartilhado (`lib/gemini/client.ts`)**: extraída a camada genérica de chamada à Interactions API (`callGeminiInteraction`, `GeminiCallError`, `extractOutputText`), desacoplada de áudio ou texto. `lib/transcription/gemini.ts` refatorado para consumir este client mantendo assinatura pública e testes inalterados.
+2. **Schema e Reducer (`lib/events/types.ts`, `lib/events/mood-insights-store.ts`)**:
+   - `MoodInsightsUpdatedEvent`: armazena `resumoGeral`, `gatilhosPositivos`, `gatilhosNegativos`, `sugestoesMelhoria`, `tendencia` ("melhorando" | "piorando" | "estavel" | "sem_dados_suficientes") e `baseadoEmEntradas`.
+   - `reduceMoodInsights`: reduz os eventos append-only pegando o mais recente (o log cresce preservando histórico, mas o estado exibido evolui sem acumular listas infinitas).
+   - Testado em `lib/events/mood-insights-store.test.ts`.
+3. **Módulo de Análise e Prompting (`lib/insights/gemini-insights.ts`)**:
+   - `selectEntriesForInsights`: filtra até 30 entradas recentes que possuam texto ou transcrição de áudio.
+   - `buildInsightsPrompt`: monta prompt estruturado com contexto do resumo anterior (quando existente) instruindo o modelo a refinar e atualizar, limitar listas a no máximo 5 itens curtos/acionáveis e calcular a tendência.
+   - `parseInsightsResponse`: parsing estrito com validação completa de schema e campos tipados, tolerante apenas a eventuais cercas markdown ````json ````.
+   - `generateMoodInsights`: orquestração completa da análise.
+   - Testado em `lib/insights/gemini-insights.test.ts`.
+4. **Componente de Configuração Compartilhado (`components/gemini-api-key-settings.tsx`)**:
+   - Extraído de `app/diario/page.tsx` para reutilização nas páginas `/diario` e `/metricas`.
+5. **Página de Métricas e Navegação (`app/metricas/page.tsx`, `app/page.tsx`, `components/top-tabs.tsx`)**:
+   - Criada a página `/metricas` com aviso de privacidade sobre a saída de dados de até 30 entradas para a Gemini API, badge de tendência com cores semânticas, resumo geral, listas de gatilhos e sugestões, contagem de entradas elegíveis e botão de atualização.
+   - Card "Métricas" em `app/page.tsx` transformado em link `<Link href="/metricas">`.
+   - Aba "Métricas" adicionada ao `TopTabs`.
+6. **Documentação (`ARCHITECTURE.md`)**:
+   - Registrada a exceção de zero-knowledge ampliada para envio do texto de até 30 entradas sob demanda para a Gemini API e persistência append-only reduzida ao mais recente.
+
+### Estado de verificação
+
+- `npm run lint`: ✅ zerado (0 erros, 0 avisos).
+- `npm run test`: ✅ 109/109 testes passando em 16 arquivos.
+- `npm run build`: ✅ export estático limpo gerando rota `/metricas`.
+- **Limitação mantida**: a chamada real à Gemini API depende da chave que o usuário configura no próprio app; testes unitários validam o payload, parsing e mocks HTTP.
+
+---
+
 ## Sessão 2026-09-13 — Transcrição de voz via Gemini API
 
 ### O que foi feito

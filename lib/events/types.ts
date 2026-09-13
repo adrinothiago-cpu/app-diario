@@ -147,6 +147,32 @@ export interface DiaryTranscriptionAddedEvent {
   texto: string;
 }
 
+export type MoodTrend = "melhorando" | "piorando" | "estavel" | "sem_dados_suficientes";
+
+export interface MoodInsights {
+  resumoGeral: string;
+  gatilhosPositivos: string[];
+  gatilhosNegativos: string[];
+  sugestoesMelhoria: string[];
+  tendencia: MoodTrend;
+  baseadoEmEntradas: number;
+}
+
+/**
+ * Resumo evolutivo de insights de humor gerado via Gemini API.
+ * Append-only como o resto do log: cada nova análise grava um evento
+ * completo atualizado, e o reducer usa sempre o mais recente.
+ */
+export interface MoodInsightsUpdatedEvent {
+  type: "mood_insights_updated";
+  resumoGeral: string;
+  gatilhosPositivos: string[];
+  gatilhosNegativos: string[];
+  sugestoesMelhoria: string[];
+  tendencia: MoodTrend;
+  baseadoEmEntradas: number;
+}
+
 export type AppEvent =
   | WorkoutSetEvent
   | DiaryEntryEvent
@@ -160,7 +186,8 @@ export type AppEvent =
   | TodoDeletedEvent
   | TodoRestoredEvent
   | SettingsUpdatedEvent
-  | DiaryTranscriptionAddedEvent;
+  | DiaryTranscriptionAddedEvent
+  | MoodInsightsUpdatedEvent;
 
 /** Registro persistido no IndexedDB: envelope binário opaco (id em texto, resto é ciphertext). */
 export interface StoredEvent {
