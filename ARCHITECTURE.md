@@ -99,12 +99,13 @@ imutáveis; mudanças exigem decisão explícita do dono do projeto registrada n
 > Regras de git/commit, modelo por tarefa e estilo de resposta agora vivem em
 > `~/.claude/CLAUDE.md` (regra global, vale pra todos os projetos).
 
-## Comandos
+## Comandos e Processo de Release
 
 - `npm run dev` — servidor de desenvolvimento.
 - `npm run build` — export estático em `out/`.
 - `npm run lint` — ESLint (ignora `.next/`, `out/`, `android/`).
-- `npx cap sync android` — copia `out/` + plugins para o projeto Android
-  (exige `npm run build` antes).
-- Build da APK: `cd android && ./gradlew assembleDebug` (exige Android SDK;
-  ver pendências no `PROJECT_HANDOFF.md`).
+- `npm test` — testes unitários via Vitest.
+- `npx cap sync android` — copia `out/` + plugins para o projeto Android (exige `npm run build` antes).
+- Build da APK: `./gradlew assembleDebug` dentro da pasta `android/`.
+- **Publicação e Atualizações (Decisão do Thiago, 2026-09-13)**: o processo de release e atualização é **exclusivamente via GitHub Releases** (`gh release create v<versionCode> android/app/build/outputs/apk/debug/app-debug.apk --title "<versionName>" --notes "..."`). Não subir mais APK no Google Drive: o próprio app possui auto-update (`components/update-banner.tsx`) que detecta novas tags no GitHub e baixa/instala o APK de forma assistida.
+- **Identificação de versão na UI**: o componente `AppVersion` (`components/app-version.tsx`) consulta `App.getInfo()` no Android e renderiza `v<versionName> (<versionCode>)` no topo em `TopTabs` e no rodapé da página inicial, permitindo ao usuário conferir a versão ativa em tempo real.

@@ -72,6 +72,8 @@ function MetricasContent() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
   async function refresh() {
     if (!key) return;
     const decrypted = await listDecryptedEvents(key);
@@ -95,6 +97,7 @@ function MetricasContent() {
     if (!key || !geminiApiKey || eligible.length === 0) return;
     setBusy(true);
     setError(null);
+    setSuccessMsg(null);
     try {
       const generated = await generateMoodInsights(geminiApiKey, entries, insights);
       await appendEvent(key, {
@@ -108,6 +111,9 @@ function MetricasContent() {
         modeloUsado: generated.modeloUsado,
       });
       await refresh();
+      setSuccessMsg(
+        `Insights atualizados com sucesso via ${generated.modeloUsado ?? "Gemini"}!`,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -152,6 +158,13 @@ function MetricasContent() {
           </p>
         )}
 
+        {successMsg && (
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-900/50 bg-emerald-950/30 p-3 text-sm text-emerald-400">
+            <span>⚡</span>
+            <span>{successMsg}</span>
+          </div>
+        )}
+
         {error && (
           <div className="rounded-lg border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-400">
             Falha ao gerar insights: {error}
@@ -161,7 +174,7 @@ function MetricasContent() {
 
       {insights ? (
         <article className="flex flex-col gap-5 rounded-xl border border-border bg-surface p-6">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
             <div
               className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
                 TREND_META[insights.tendencia].className
@@ -172,17 +185,15 @@ function MetricasContent() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-muted">
-                Baseado nas {insights.baseadoEmEntradas}{" "}
-                {insights.baseadoEmEntradas === 1 ? "entrada" : "entradas"} mais recentes
+                {insights.baseadoEmEntradas}{" "}
+                {insights.baseadoEmEntradas === 1 ? "entrada analisada" : "entradas analisadas"}
               </span>
-              {insights.modeloUsado && (
-                <span className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5 text-[11px] text-muted">
-                  <span>⚡</span>
-                  <span>
-                    Modelo: <strong className="font-medium text-foreground">{insights.modeloUsado}</strong>
-                  </span>
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
+                <span>⚡ IA:</span>
+                <span className="font-mono font-semibold">
+                  {insights.modeloUsado ?? "versão anterior"}
                 </span>
-              )}
+              </span>
             </div>
           </div>
 

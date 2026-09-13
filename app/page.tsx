@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AppVersion } from "@/components/app-version";
 import { DevTag } from "@/components/dev-tag";
 
 export default function Home() {
@@ -30,6 +31,10 @@ export default function Home() {
           <p className="text-sm text-muted">Insights e evolução do humor com Gemini.</p>
         </Link>
       </div>
+      <footer className="mt-2 text-center text-xs text-muted/50">
+        <span>Diário App • </span>
+        <AppVersion />
+      </footer>
     </main>
   );
 }

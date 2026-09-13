@@ -48,7 +48,9 @@ Quando a Gemini API retorna erro de alta demanda temporária (500/503/429/overlo
 
 - **Fallback automático transparente**: avança de modelo em caso de 5xx, 429 ou menções de sobrecarga de demanda. Chaves comprovadamente inválidas (401/403 de autenticação) falham de imediato sem desperdício de chamadas.
 - **Identificação do modelo**: `callGeminiInteraction` retorna `{ text, modelUsed }`. `MoodInsights` e `MoodInsightsUpdatedEvent` agora persistem `modeloUsado`.
-- **UI (`app/metricas/page.tsx`)**: exibe uma tag `⚡ Modelo: <nome>` no card de insights indicando qual modelo gerou a análise. Mensagem de erro amigável só é apresentada se **todos** os modelos candidatos falharem.
+- **UI (`app/metricas/page.tsx`)**: exibe uma tag destacada `⚡ IA: <nome>` no card de insights e aviso de sucesso informando o modelo que processou.
+- **Indicador de versão do App (`components/app-version.tsx`)**: consulta `App.getInfo()` no Android para exibir a versão exata do app instalada (`v<versionName> (<versionCode>)`) tanto na barra de guias superior `TopTabs` (visível em todas as telas) quanto no rodapé da página inicial.
+- **Decisão sobre distribuição (Thiago, 2026-09-13)**: daqui para frente, as atualizações são publicadas **exclusivamente via GitHub Releases** (`gh release create v<build> <apk>`), sem necessidade de upload no Google Drive. O app possui rotina nativa de auto-update (`components/update-banner.tsx`) que detecta o release mais recente no GitHub e permite atualizar diretamente pelo aparelho.
 - 113 testes automatizados passando, lint zerado e APK compilado com sucesso.
 
 ---
