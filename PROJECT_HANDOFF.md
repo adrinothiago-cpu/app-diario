@@ -6,6 +6,65 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
 
 ---
 
+## Sessão 2026-09-12 — Causa raiz do bug do microfone: MODIFY_AUDIO_SETTINGS
+
+### O que foi feito
+
+Depois de mais uma rodada de testes sem sucesso via `adb`/emulador, o
+Thiago abriu o projeto no **Android Studio** com o S25 Ultra físico
+conectado via USB e Logcat ao vivo, e pediu ajuda à IA integrada
+(Gemini). Com acesso ao dispositivo real (que eu não tinha), ela achou a
+causa raiz de verdade.
+
+**O bug**: o `BridgeWebChromeClient` padrão do Capacitor (código-fonte em
+`node_modules/@capacitor/android`, não customizado por nós) trata o
+`AUDIO_CAPTURE` que o WebView pede internamente durante `getUserMedia`
+solicitando **duas** permissões juntas: `RECORD_AUDIO` **e**
+`MODIFY_AUDIO_SETTINGS`. Meu `MicrophonePlugin` só pedia `RECORD_AUDIO`
+— por isso `dumpsys` sempre mostrava ela `granted=true`, mascarando o
+problema real. Como `MODIFY_AUDIO_SETTINGS` nunca estava declarada no
+`AndroidManifest.xml`, o sistema nunca conseguia concedê-la de verdade; o
+Capacitor trata "nem tudo da lista foi concedido" como negação total e
+chama `request.deny()`, resultando no `NotAllowedError` persistente — em
+todas as sessões anteriores, no emulador e no celular físico, sempre pela
+mesma causa que nenhuma das correções anteriores (user-gesture, cache do
+WebView, desinstalação completa) sequer tocava.
+
+**Correção**: uma linha — `<uses-permission
+android:name="android.permission.MODIFY_AUDIO_SETTINGS" />` no manifest.
+É permissão "normal" (não perigosa): concedida automaticamente na
+instalação assim que declarada, não precisa de request em runtime (por
+isso o `MicrophonePlugin` não precisou mudar).
+
+### Estado de verificação
+
+- `npm run lint`/`test` (77/77)/`build`: ✅.
+- **Confirmado funcionando de verdade no emulador**: fluxo "Permitir
+  microfone" → "Gravar áudio" → indicador nativo do microfone (ícone
+  verde) aparece na barra de status → grava → player de áudio funcional
+  com a entrada salva na lista, tocando o áudio de volta.
+- `versionCode 10` / `versionName "1.4"`, release `v10` publicado, APK
+  copiado para o Drive.
+- Corrigido também um deslize: um commit anterior acidentalmente subiu a
+  pasta `.idea/` do Android Studio pro repositório — removida do controle
+  de versão e adicionada ao `.gitignore`.
+- **Ainda não confirmado no celular físico do Thiago** — só no emulador
+  até agora (o emulador nunca teve microfone real, mas a mudança em si —
+  permissão declarada no manifest — não depende de hardware de áudio para
+  ser válida; o teste real no S25 Ultra é o que fecha definitivamente essa
+  pendência).
+
+### Pendências
+
+1. Thiago confirmar a gravação de voz funcionando no S25 Ultar via
+   auto-update (a v9 já instalada nele tem o mecanismo de update
+   funcional; só falta ele rodar "Atualizar" pra pegar a v10).
+2. Pendências antigas seguem abertas: responsividade da guia Tarefas,
+   tela de login, OAuth do Drive, assinatura de release, geolocalização
+   das entradas de diário.
+
+---
+
 ## Sessão 2026-09-11 (parte 5) — Auto-update funcionando de ponta a ponta
 
 ### O que foi feito
