@@ -123,6 +123,30 @@ export interface TodoRestoredEvent {
   todoId: string;
 }
 
+/**
+ * Configurações do app — hoje só a chave de API do Gemini (transcrição de
+ * voz, ver `ARCHITECTURE.md` sobre a exceção de zero-knowledge). Igual ao
+ * resto do log, é append-only: uma nova chave vira um novo evento, o
+ * reducer usa sempre o mais recente. A chave viaja cifrada como qualquer
+ * evento (mesmo AES-GCM 256 do vault) — nunca em texto plano no disco.
+ */
+export interface SettingsUpdatedEvent {
+  type: "settings_updated";
+  geminiApiKey: string;
+}
+
+/**
+ * Transcrição de uma entrada de diário com áudio. Evento de delta
+ * separado (não edita o `diary_entry` original) — mesma lógica de
+ * imutabilidade do log: a entrada original nunca muda, a transcrição é
+ * um fato adicional sobre ela.
+ */
+export interface DiaryTranscriptionAddedEvent {
+  type: "diary_transcription_added";
+  entryId: string;
+  texto: string;
+}
+
 export type AppEvent =
   | WorkoutSetEvent
   | DiaryEntryEvent
@@ -134,7 +158,9 @@ export type AppEvent =
   | TodoToggledEvent
   | TodoUpdatedEvent
   | TodoDeletedEvent
-  | TodoRestoredEvent;
+  | TodoRestoredEvent
+  | SettingsUpdatedEvent
+  | DiaryTranscriptionAddedEvent;
 
 /** Registro persistido no IndexedDB: envelope binário opaco (id em texto, resto é ciphertext). */
 export interface StoredEvent {
@@ -170,10 +196,9 @@ export interface ListItem {
 }
 
 /**
- * Entrada de diário derivada — `diary_entry` não tem eventos de delta (sem
- * editar/apagar ainda), então isso é praticamente o evento decifrado
- * carregando também `id`/`criadoEm` com nomes consistentes com os outros
- * itens derivados (`TodoItem`, `ListItem`).
+ * Entrada de diário derivada — `diary_entry` em si não tem eventos de
+ * delta (sem editar/apagar ainda), mas `transcricao` é aplicada por cima
+ * via `diary_transcription_added` (ver `lib/events/diary-store.ts`).
  */
 export interface DiaryEntryItem {
   id: string;
@@ -186,5 +211,7 @@ export interface DiaryEntryItem {
   audioBase64: string | null;
   audioMimeType: string | null;
   audioDuracaoSeg: number | null;
+  /** Preenchida via transcrição do áudio (Gemini API) — null enquanto não transcrito. */
+  transcricao: string | null;
   criadoEm: number;
 }

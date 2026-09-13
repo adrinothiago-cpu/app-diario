@@ -16,7 +16,9 @@ imutáveis; mudanças exigem decisão explícita do dono do projeto registrada n
   (`capacitor.config.ts`, webDir `out`). O diretório `android/` é gerado/gerido
   pelo Capacitor — nunca editar bundles em `android/app/src/main/assets/public`
   (são cópias de build); mudanças manuais legítimas ficam restritas a
-  `AndroidManifest.xml`, gradle e recursos nativos.
+  `AndroidManifest.xml`, gradle e recursos nativos (ex: captura de áudio via
+  WebView `getUserMedia` exige tanto `RECORD_AUDIO` quanto `MODIFY_AUDIO_SETTINGS`
+  declaradas no `AndroidManifest.xml` devido ao `BridgeWebChromeClient` do Capacitor).
 - **Persistência local**: IndexedDB via wrapper leve próprio (sem ORM pesado).
 - **Remoto**: Google Drive REST API, apenas `/appDataFolder`, apenas payloads
   cifrados. Sem banco relacional hospedado, sem Vercel/Node em produção.
@@ -27,6 +29,17 @@ imutáveis; mudanças exigem decisão explícita do dono do projeto registrada n
   dado do usuário; só pergunta "qual a versão mais nova?". Repositório:
   `github.com/adrinothiago-cpu/app-diario` (público — precisa ser público
   para a checagem funcionar sem token embutido no app).
+- **Exceção de zero-knowledge (decisão do Thiago, 2026-09-13)**: transcrição
+  de áudio via Gemini API (`lib/transcription/gemini.ts`) — a única
+  funcionalidade do app que manda **conteúdo do usuário** (o áudio de uma
+  entrada de diário) para um servidor de terceiro. É ação manual, por
+  entrada, nunca automática — sem clicar em "Transcrever" o áudio nunca sai
+  do aparelho. Chave usada é do **tier gratuito** do Google AI Studio;
+  ciente de que esse tier permite ao Google usar o conteúdo enviado para
+  treinar/melhorar produtos deles (diferente do tier pago/Vertex AI, que tem
+  garantia contratual de não retenção). A chave de API em si fica cifrada
+  localmente com o mesmo AES-GCM 256 do vault (evento `settings_updated`) —
+  nunca em texto plano no disco, nunca no código-fonte (o repo é público).
 
 ## Segurança (inegociável)
 

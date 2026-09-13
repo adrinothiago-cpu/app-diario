@@ -62,4 +62,29 @@ describe("reduceDiaryEntries", () => {
     expect(item.audioMimeType).toBeNull();
     expect(item.audioDuracaoSeg).toBeNull();
   });
+
+  it("começa com transcricao null antes de qualquer diary_transcription_added", () => {
+    const [item] = reduceDiaryEntries([entry("e1", 1)]);
+    expect(item.transcricao).toBeNull();
+  });
+
+  it("aplica diary_transcription_added na entrada correspondente por entryId", () => {
+    const events: DecryptedEvent[] = [
+      entry("e1", 1),
+      entry("e2", 2),
+      { type: "diary_transcription_added", entryId: "e1", texto: "Texto transcrito.", id: "e3", createdAt: 3 },
+    ];
+    const items = reduceDiaryEntries(events);
+    expect(items.find((i) => i.id === "e1")?.transcricao).toBe("Texto transcrito.");
+    expect(items.find((i) => i.id === "e2")?.transcricao).toBeNull();
+  });
+
+  it("ignora diary_transcription_added referenciando uma entrada inexistente", () => {
+    const events: DecryptedEvent[] = [
+      entry("e1", 1),
+      { type: "diary_transcription_added", entryId: "nao-existe", texto: "x", id: "e2", createdAt: 2 },
+    ];
+    expect(() => reduceDiaryEntries(events)).not.toThrow();
+    expect(reduceDiaryEntries(events)).toHaveLength(1);
+  });
 });
