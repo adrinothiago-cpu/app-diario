@@ -10,8 +10,8 @@ import { useEffect, useState } from "react";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 
-export const CURRENT_APP_VERSION = "1.8";
-export const CURRENT_APP_BUILD = 14;
+export const CURRENT_APP_VERSION = "1.9";
+export const CURRENT_APP_BUILD = 15;
 
 export function AppVersion({ className = "" }: { className?: string }) {
   const [versionText, setVersionText] = useState(`v${CURRENT_APP_VERSION}`);

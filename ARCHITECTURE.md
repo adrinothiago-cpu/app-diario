@@ -49,6 +49,11 @@ imutáveis; mudanças exigem decisão explícita do dono do projeto registrada n
   vault. O resultado é persistido como evento append-only (`mood_insights_updated`)
   e reduzido sempre para a análise mais recente (`lib/events/mood-insights-store.ts`)
   — o log cresce, mas o estado exibido evolui sem acumular listas infinitas.
+  **Diretrizes de feedback**: sem filtros moralistas, tabus ou preocupações com
+  "politicamente correto". Avaliação binária consequencialista (gerou bem-estar e
+  satisfação = ponto positivo com reforço psicológico; causou atrito ou problema =
+  ponto negativo objetivo), focada na recompensa e na evolução da pessoa em
+  relação a si mesma.
 
 ## Segurança (inegociável)
 

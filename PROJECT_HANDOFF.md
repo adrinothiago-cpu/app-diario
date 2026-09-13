@@ -53,6 +53,16 @@ Quando a Gemini API retorna erro de alta demanda temporária (500/503/429/overlo
 - **Decisão sobre distribuição (Thiago, 2026-09-13)**: daqui para frente, as atualizações são publicadas **exclusivamente via GitHub Releases** (`gh release create v<build> <apk>`), sem necessidade de upload no Google Drive. O app possui rotina nativa de auto-update (`components/update-banner.tsx`) que detecta o release mais recente no GitHub e permite atualizar diretamente pelo aparelho.
 - 113 testes automatizados passando, lint zerado e APK compilado com sucesso.
 
+### Atualização pós-teste: Diretrizes de feedback sem tabus e foco em recompensa (v1.9 / build 15)
+
+Ajustadas as instruções de análise da IA em `lib/insights/gemini-insights.ts`:
+- **Sem viés de tabu ou moralismo corporativo/politicamente correto**: análise pragmática focada exclusivamente na perspectiva individual e nos relatos reais do usuário, sem julgamento moral externo ou censura.
+- **Critério binário consequencialista**:
+  - Fez bem e trouxe bem-estar, disposição, produtividade ou clareza? → Ponto positivo (gatilho positivo) com reforço explícito.
+  - Deu problema, atrito, estresse ou queda de humor? → Ponto negativo (gatilho negativo) exposto com clareza objetiva e direta.
+- **Foco na recompensa da evolução pessoal**: o `resumoGeral` concentra-se em recompensar e celebrar os hábitos e comportamentos que deram certo, avaliando a própria evolução da pessoa em relação a ela mesma.
+- 114 testes automatizados passando e versão atualizada para `versionCode 15` / `versionName "1.9"`.
+
 ---
 
 ## Sessão 2026-09-13 — Transcrição de voz via Gemini API

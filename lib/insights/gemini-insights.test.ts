@@ -81,6 +81,14 @@ describe("buildInsightsPrompt", () => {
     expect(prompt).toContain('"sem_dados_suficientes"');
     expect(prompt).toContain("Primeiro dia de diário");
   });
+
+  it("inclui diretrizes de ausência de tabus, critério binário e foco em recompensa", () => {
+    const entries = [makeEntry({ id: "1", conteudo: "Treinei pesado e me senti ótimo" })];
+    const prompt = buildInsightsPrompt(entries, null);
+    expect(prompt).toContain("SEM TABUS OU MORALISMO");
+    expect(prompt).toContain("CRITÉRIO BINÁRIO BASEADO EM EFEITO REAL");
+    expect(prompt).toContain("RECOMPENSA E REFORÇO POSITIVO");
+  });
 });
 
 describe("parseInsightsResponse", () => {
