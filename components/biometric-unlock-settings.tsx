@@ -52,8 +52,12 @@ export function BiometricUnlockSettings() {
       await enrollBiometric(password);
       setPassword("");
       setOpen(false);
-    } catch {
-      setError("Não foi possível ativar — confirme a senha e tente de novo.");
+    } catch (err: any) {
+      if (err?.code === "USER_CANCELED") {
+        setError(null);
+      } else {
+        setError(err?.message || "Não foi possível ativar — confirme a senha e tente de novo.");
+      }
     } finally {
       setSaving(false);
     }

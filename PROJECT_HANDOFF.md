@@ -1125,3 +1125,22 @@ artefato da minha verificação, o Thiago pode apagar ou manter.
 4. Decidir fluxo OAuth do Google Drive sem backend (PKCE em app nativo +
    desktop) — pesquisar limitações do `appDataFolder` com chave de API pública.
 5. Validar visualmente a página placeholder (`npm run dev`).
+
+
+## Sessão 2026-09-24 — Correção Biometria Android 15 / Samsung S25 Ultra (Release v17)
+
+### Problema reportado
+Thiago testou o APK no Samsung Galaxy S25 Ultra e o aplicativo falhava ao solicitar a digital.
+
+### Causa raiz diagnosticada
+1. Construtor `new BiometricPrompt()` era instanciado em background worker thread do Capacitor, violando a exigência de UI Thread do `FragmentManager` e `ViewModelProvider` no Android 15.
+2. `BiometricPrompt.PromptInfo` não continha `.setAllowedAuthenticators(BIOMETRIC_STRONG)`, disparando `IllegalArgumentException` imediata ao passar `CryptoObject` em aparelhos com Reconhecimento Facial (Class 2 / WEAK) ativo.
+3. `KeyGenParameterSpec` utilizava método legado em vez de `setUserAuthenticationParameters(0, AUTH_BIOMETRIC_STRONG)` para API 30+.
+4. Chave do Keystore reaproveitada em caso de invalidação prévia, causando loop de falha.
+5. Mensagens de erro engolidas pelo bloco `catch` no React.
+
+### O que foi corrigido
+- **`android/app/src/main/java/com/thiago/diario/BiometricPlugin.java`**: Criação do `BiometricPrompt` totalmente encapsulada em `activity.runOnUiThread`, inclusão obrigatória de `setAllowedAuthenticators(BIOMETRIC_STRONG)`, suporte à API 30+ no Keystore e regeneração atômica de chaves no `enroll`.
+- **`android/app/src/main/AndroidManifest.xml`**: Adicionada permissão `USE_FINGERPRINT` junto de `USE_BIOMETRIC`.
+- **`components/biometric-unlock-settings.tsx`** e **`components/vault-provider.tsx`**: Tratamento adequado de erros nativos e cancelamento pelo usuário sem alerta vermelho.
+- **`android/app/build.gradle`**: Incremento para `versionCode 17` / `versionName "1.11"`.

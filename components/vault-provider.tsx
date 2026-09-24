@@ -129,8 +129,12 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     try {
       const password = await unlockWithBiometricSecret();
       await deriveAndSet(password);
-    } catch {
-      setError("Não foi possível desbloquear com digital.");
+    } catch (err: any) {
+      if (err?.code === "USER_CANCELED" || err?.message?.includes("cancelada")) {
+        setStatus("locked");
+        return;
+      }
+      setError(err?.message || "Não foi possível desbloquear com digital.");
       setStatus("locked");
     }
   }, [deriveAndSet]);
