@@ -58,15 +58,19 @@ plugin nativo próprio em vez de dependência de terceiro, mesmo padrão de
 - **Não validado visualmente/funcionalmente** — não há emulador com sensor
   biométrico configurado neste ambiente nem acesso ao celular físico do
   Thiago (Samsung Galaxy S25 Ultra) nesta sessão. Só compilou.
+- **`versionCode 16` / `versionName "1.10"`**, commit `f1e31a5` publicado em
+  `main`, release `v16` publicado no GitHub com o APK debug anexado — o
+  Thiago reportou que o auto-update não tinha disparado porque, até esse
+  ponto, nenhum release novo existia ainda (o instalado era o `v15`).
 
 ### Pendências
 
-1. **Prioridade desta sessão**: Thiago instalar a build no S25 e testar de
-   ponta a ponta — desbloquear o app com senha, abrir "Ativar desbloqueio
-   por digital" na tela do Diário, confirmar a senha, autenticar com
-   digital, trancar o cofre (não existe hoje um botão de "trancar"
-   explícito na UI — só perder o estado em memória, ex. fechar o app) e
-   reabrir usando "Desbloquear com digital". Também testar "Desativar".
+1. **Prioridade desta sessão**: Thiago atualizar via o banner de auto-update
+   (ou instalar o `v16` manualmente) e testar de ponta a ponta — desbloquear
+   o app com senha, abrir "Ativar desbloqueio por digital" na tela do
+   Diário, confirmar a senha, autenticar com digital, "Trancar" (botão novo
+   no topo) e reabrir usando "Desbloquear com digital". Também testar
+   "Desativar".
 2. Pendências antigas seguem abertas: responsividade da guia Tarefas, tela
    de login, OAuth do Drive, assinatura de release, geolocalização das
    entradas de diário.
