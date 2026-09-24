@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(MicrophonePlugin.class);
         registerPlugin(UpdaterPlugin.class);
+        registerPlugin(BiometricPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

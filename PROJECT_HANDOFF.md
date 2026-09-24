@@ -6,6 +6,73 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
 
 ---
 
+## Sessão 2026-09-24 — Desbloqueio por biometria (Android)
+
+### O que foi feito
+
+Thiago pediu a opção de destravar o cofre com a digital. Alinhado antes de
+implementar: (1) escopo só Android nativo, PWA de PC continua só senha; (2)
+plugin nativo próprio em vez de dependência de terceiro, mesmo padrão de
+`MicrophonePlugin`/`UpdaterPlugin`. Decisão de segurança registrada em
+`ARCHITECTURE.md` (nova seção "Desbloqueio por biometria").
+
+- **`android/app/src/main/java/com/thiago/diario/BiometricPlugin.java`**:
+  `BiometricPrompt` + chave AES-GCM no Android Keystore
+  (`setUserAuthenticationRequired` + `setInvalidatedByBiometricEnrollment`)
+  cifrando a senha do cofre em `SharedPreferences` privado. Métodos
+  `isAvailable`/`hasEnrolledSecret`/`enroll`/`unlock`/`disable`. Registrado
+  em `MainActivity.java`; dependência `androidx.biometric:biometric:1.1.0`
+  (a `1.2.0` não existe — só há estável até `1.1.0`, depois pula para
+  `1.4.0-alpha`, corrigido durante o build). Permissão `USE_BIOMETRIC` +
+  `uses-feature android.hardware.fingerprint` (`required=false`) no
+  manifest.
+- **`lib/native/biometric.ts`**: wrapper JS no-op fora do Android, mesmo
+  padrão de `lib/native/microphone.ts`.
+- **`components/vault-provider.tsx`**: novo estado
+  `biometricAvailable`/`biometricEnrolled` (checado ao montar) e
+  `unlockWithBiometric`/`enrollBiometric`/`disableBiometric`. Importante:
+  `enrollBiometric` valida a senha (tenta decifrar o cofre) **antes** de
+  cadastrá-la atrás da biometria — sem isso uma senha errada digitada no
+  formulário de ativação ficaria cifrada e só falharia silenciosamente na
+  próxima tentativa de desbloqueio por digital.
+- **`components/vault-gate.tsx`**: botão "Desbloquear com digital" na tela
+  de senha, visível só quando já há um segredo cadastrado.
+- **`components/biometric-unlock-settings.tsx`** (novo, mesmo padrão de
+  `gemini-api-key-settings.tsx`): liga/desliga o recurso, some
+  silenciosamente se o aparelho não tiver hardware biométrico. Montado em
+  `app/diario/page.tsx` (não existe uma tela de "Configurações" dedicada
+  ainda — mesmo lugar onde já vive a configuração da chave Gemini).
+- **Botão "Trancar" no `TopTabs`** (`components/top-tabs.tsx`, visível em
+  todas as telas quando o cofre está desbloqueado): não existia nenhum jeito
+  de trancar o cofre manualmente antes — sem isso, testar/usar o
+  desbloqueio por digital exigiria forçar-parar o app inteiro toda vez.
+  Adicionado como parte desta sessão, fora do pedido original, mas
+  necessário pra a feature ser testável/utilizável de verdade.
+
+### Estado de verificação
+
+- `npm run lint`/`test` (114/114)/`build`: ✅.
+- `npx cap sync android` + `./gradlew assembleDebug`: ✅ `BUILD SUCCESSFUL`
+  (confirma que o `BiometricPlugin.java` compila e resolve as APIs do
+  Keystore/BiometricPrompt corretamente).
+- **Não validado visualmente/funcionalmente** — não há emulador com sensor
+  biométrico configurado neste ambiente nem acesso ao celular físico do
+  Thiago (Samsung Galaxy S25 Ultra) nesta sessão. Só compilou.
+
+### Pendências
+
+1. **Prioridade desta sessão**: Thiago instalar a build no S25 e testar de
+   ponta a ponta — desbloquear o app com senha, abrir "Ativar desbloqueio
+   por digital" na tela do Diário, confirmar a senha, autenticar com
+   digital, trancar o cofre (não existe hoje um botão de "trancar"
+   explícito na UI — só perder o estado em memória, ex. fechar o app) e
+   reabrir usando "Desbloquear com digital". Também testar "Desativar".
+2. Pendências antigas seguem abertas: responsividade da guia Tarefas, tela
+   de login, OAuth do Drive, assinatura de release, geolocalização das
+   entradas de diário.
+
+---
+
 ## Sessão 2026-09-13 (parte 2) — Feature "Insights de humor" via Gemini implementada
 
 ### O que foi feito

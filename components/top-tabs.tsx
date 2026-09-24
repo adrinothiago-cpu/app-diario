@@ -8,6 +8,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AppVersion } from "@/components/app-version";
+import { useVault } from "@/components/vault-provider";
 
 const TABS = [
   { href: "/", label: "Início" },
@@ -19,6 +20,7 @@ const TABS = [
 
 export function TopTabs() {
   const pathname = usePathname();
+  const { key, lock } = useVault();
 
   return (
     <nav className="sticky top-0 z-10 flex items-center gap-1 bg-background px-4 py-3">
@@ -38,7 +40,16 @@ export function TopTabs() {
           );
         })}
       </div>
-      <div className="ml-auto flex shrink-0 items-center pl-2">
+      <div className="ml-auto flex shrink-0 items-center gap-3 pl-2">
+        {key && (
+          <button
+            type="button"
+            onClick={lock}
+            className="whitespace-nowrap text-sm text-muted hover:text-foreground"
+          >
+            Trancar
+          </button>
+        )}
         <AppVersion />
       </div>
     </nav>

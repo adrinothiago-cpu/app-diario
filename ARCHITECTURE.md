@@ -55,6 +55,31 @@ imutáveis; mudanças exigem decisão explícita do dono do projeto registrada n
   ponto negativo objetivo), focada na recompensa e na evolução da pessoa em
   relação a si mesma.
 
+## Desbloqueio por biometria (Android, opcional — decisão do Thiago, 2026-09-24)
+
+- **Escopo**: só Android nativo (Capacitor). No PWA de PC o desbloqueio
+  continua exclusivamente por senha.
+- **Mecanismo**: plugin nativo próprio `BiometricPlugin.java` (mesmo padrão
+  de `MicrophonePlugin`/`UpdaterPlugin`, sem dependência de terceiro). A
+  senha do cofre — não a chave AES derivada, que nunca é extraível — fica
+  cifrada em `SharedPreferences` privado do app, usando uma chave AES-GCM
+  que existe só dentro do **Android Keystore** com
+  `setUserAuthenticationRequired(true)`: o sistema operacional só libera
+  essa chave para cifrar/decifrar depois de um `BiometricPrompt`
+  bem-sucedido, e ela nunca sai do hardware seguro do aparelho (TEE/
+  StrongBox), nem com root. `setInvalidatedByBiometricEnrollment(true)`
+  derruba a chave se uma digital nova for cadastrada no aparelho, forçando
+  reativação manual com a senha.
+- **Mudança de modelo de ameaça, aceita conscientemente**: até aqui a senha
+  nunca persistia em lugar nenhum (só a chave derivada, em memória, durante
+  a sessão). Ativar esta opção passa a manter a senha cifrada em disco,
+  protegida só pelo Keystore do aparelho. É opt-in (desativado por padrão),
+  reversível a qualquer momento (`components/biometric-unlock-settings.tsx`,
+  botão "Desativar" apaga o segredo e a chave do Keystore), e ativar exige
+  confirmar a senha atual antes de cadastrar.
+- `android:allowBackup="false"` já era a configuração do app — o segredo
+  cifrado nunca é incluído em backup automático do Android/Google.
+
 ## Segurança (inegociável)
 
 - Chave mestre derivada da senha via **PBKDF2** (Web Crypto), salt único por

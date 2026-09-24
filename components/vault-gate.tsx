@@ -5,7 +5,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { useVault } from "./vault-provider";
 
 export function VaultUnlockForm() {
-  const { status, error, unlock } = useVault();
+  const { status, error, unlock, biometricEnrolled, unlockWithBiometric } = useVault();
   const [password, setPassword] = useState("");
 
   function handleSubmit(e: FormEvent) {
@@ -32,6 +32,16 @@ export function VaultUnlockForm() {
       >
         {status === "unlocking" ? "Desbloqueando…" : "Desbloquear"}
       </button>
+      {biometricEnrolled && (
+        <button
+          type="button"
+          onClick={() => void unlockWithBiometric()}
+          disabled={status === "unlocking"}
+          className="rounded-lg border border-border px-4 py-2 font-medium text-foreground disabled:opacity-50"
+        >
+          Desbloquear com digital
+        </button>
+      )}
       {error && <p className="text-sm text-red-400">{error}</p>}
     </form>
   );

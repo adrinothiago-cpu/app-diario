@@ -10,6 +10,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DevTag } from "@/components/dev-tag";
+import { BiometricUnlockSettings } from "@/components/biometric-unlock-settings";
 import { GeminiApiKeySettings } from "@/components/gemini-api-key-settings";
 import { VaultGate } from "@/components/vault-gate";
 import { useVault } from "@/components/vault-provider";
@@ -169,6 +170,8 @@ function DiaryContent() {
           setGeminiApiKey(newKey);
         }}
       />
+
+      <BiometricUnlockSettings />
 
       <div className="flex flex-col gap-3">
         {entries.length === 0 ? (

@@ -51,4 +51,8 @@
 
     <!-- Auto-update: instalar o APK baixado do GitHub Releases (fora da Play Store) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- Desbloqueio do cofre por biometria (BiometricPrompt + Android Keystore) -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-feature android:name="android.hardware.fingerprint" android:required="false" />
 </manifest>
