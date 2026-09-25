@@ -6,6 +6,83 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
 
 ---
 
+## Sessão 2026-09-24 (parte 5) — Validação real do fix biométrico + achado de segurança [Autor: Claude]
+
+### O que foi feito
+
+Depois de publicar o v17, o Thiago testou no S25 Ultra físico e reportou "o
+prompt nem abriu" — o mesmo sintoma de antes. Fui investigar antes de aceitar
+qualquer novo palpite: o Thiago mencionou um "simulador Android" do Google AI
+Studio; acessei via navegador (com autorização dele) e descobri que era um
+app mockup construído no AI Studio Build (ferramenta de criação de apps web
+do Google) — sem nenhum Android real, BiometricPrompt ou Keystore por trás.
+Perguntei direto pro Gemini ali dentro, e ela confirmou: "foi puramente uma
+simulação visual na camada web (...) sem hardware real" — as 4 causas do
+diagnóstico dela vieram só de leitura de código, nunca validadas.
+
+- **Depuração real via ADB Wireless**: sem cabo USB disponível, pareei e
+  conectei o S25 Ultra via depuração sem fio (`adb pair`/`adb connect` na
+  mesma rede Wi-Fi). Capturei `adb logcat` durante duas tentativas reais do
+  Thiago (a primeira captura foi interrompida cedo demais, sem tempo de ele
+  completar o fluxo).
+- **Confirmado tecnicamente no log**: `BiometricService`, `AuthSession` e
+  `FingerprintAuthenticationClient` do sistema Android receberam a chamada
+  de `com.thiago.diario`, e o sensor ultrassônico da tela realmente ativou
+  (`BSS_UdfpsSensorWindow`, `sem_fingerprint_layout` sendo desenhado). O fix
+  do Gemini (`8324dd6`, publicado no `v17`) **funciona de verdade** — não é
+  só percepção, o log prova o `BiometricPrompt` real disparando e o toque no
+  sensor sendo processado com sucesso (ativação e desbloqueio confirmados).
+- **Achado de segurança durante a depuração**: o log mostrou a senha do
+  cofre em **texto puro** (`methodData: {"secret":"..."}`) — é o próprio
+  framework Capacitor que loga os argumentos de toda chamada de plugin em
+  nível verbose quando o build é `debug` (o único tipo gerado até hoje neste
+  projeto). Isso viola a regra do `ARCHITECTURE.md` de nunca logar segredo.
+  Mitigação automática ao gerar um build `release` assinado (o Capacitor
+  desliga esse log verbose fora de `BuildConfig.DEBUG`) — mas enquanto só
+  existir o fluxo debug, toda ativação/uso do desbloqueio por digital deixa
+  a senha do cofre visível a quem tiver acesso ao logcat do aparelho (ex.:
+  outro app com permissão de debug, ou alguém com acesso físico + ADB
+  habilitado). Arquivos de log locais com a senha real foram apagados com
+  `shred` ao final da sessão.
+
+### Estado de verificação
+
+- **Confirmado funcionando de verdade no S25 Ultra físico**: ativar
+  desbloqueio por digital e desbloquear com digital, ambos validados via
+  logcat real (não só relato visual do Thiago).
+
+### Correção do vazamento (mesma sessão)
+
+Em vez de esperar pela assinatura de release, achei uma correção imediata:
+`capacitor.config.ts` ganhou `android.loggingBehavior: "none"` — o padrão
+do Capacitor (`"production"`) ainda loga em nível verbose em builds debug
+(foi exatamente esse log que expôs a senha); `"none"` desliga esse log do
+bridge nativo em qualquer tipo de build, sem depender de keystore de
+release. `versionCode 18` / `versionName "1.12"`.
+
+**Validado de verdade, não só na teoria**: reconectei ao S25 Ultra via ADB
+wireless, instalei a build corrigida (`adb install -r`), reiniciei o app e
+capturei o logcat de novo — confirmado que `Capacitor/Plugin`,
+`Capacitor(...): callback` e `Capacitor/Console` não aparecem mais nenhuma
+vez no log, mesmo com o app carregando normalmente (que antes disparava
+várias dessas linhas ao montar).
+
+### Pendências
+
+1. **Assinatura de release (keystore)** — segue como pendência antiga
+   (necessária pra qualquer distribuição fora do fluxo debug), mas não é
+   mais a única forma de resolver o vazamento de log — já resolvido via
+   `loggingBehavior: "none"`.
+2. Publicar release `v18` no GitHub (`versionCode` já bumpado, só falta
+   `gh release create`).
+3. Testar também "Trancar" → "Desbloquear com digital" (o fluxo de unlock já
+   apareceu funcionando no log desta sessão, mas vale confirmação visual
+   direta do Thiago).
+4. Pendências antigas seguem abertas: responsividade da guia Tarefas, tela
+   de login, OAuth do Drive, geolocalização das entradas de diário.
+
+---
+
 ## Sessão 2026-09-24 (parte 4) — Integração e revisão do fix biométrico [Autor: Claude]
 
 ### O que foi feito

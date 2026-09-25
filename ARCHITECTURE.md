@@ -101,6 +101,14 @@ imutáveis; mudanças exigem decisão explícita do dono do projeto registrada n
 - **Rate-limit de login**: máx. 5 tentativas por janela de 15 minutos.
 - Nunca logar senha, chave, plaintext de entradas ou coordenadas em console,
   arquivos ou telemetria.
+- **`android.loggingBehavior: "none"`** em `capacitor.config.ts` (decisão do
+  Thiago, 2026-09-24, achado durante depuração real do desbloqueio por
+  digital via `adb logcat`): o padrão do Capacitor (`"production"`) ainda
+  loga em nível verbose os argumentos de toda chamada de plugin em builds
+  *debug* — foi assim que a senha do cofre apareceu em texto puro no logcat
+  ao ativar o desbloqueio por digital. `"none"` desliga esse log do bridge
+  nativo em qualquer tipo de build. Nunca reverter para o padrão sem
+  substituir por outra forma de evitar logar argumentos sensíveis de plugin.
 
 ## Arquitetura de dados (event store local-first)
 
