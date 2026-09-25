@@ -6,6 +6,47 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
 
 ---
 
+## Sessão 2026-09-24 (parte 6) — Bug: sugestão de tarefa aceita não vira tarefa [Autor: Claude]
+
+### O que foi feito
+
+Thiago reportou que a sugestão de tarefas via IA "sugere, mas não vira
+tarefa". Causa raiz em `components/tarefas/diary-task-suggestions.tsx`:
+`handleAddSelected` disparava `onAccept` (que é `createTodo` —
+`appendEvent` + `reload()` do log inteiro) para cada sugestão marcada num
+`forEach`, sem `await`. Com mais de uma sugestão aceita de uma vez, os
+`reload()` concorrentes competem: cada um lê o IndexedDB e faz
+`setEvents()` com o snapshot que viu naquele instante, e não há garantia de
+que o último a resolver seja o que tem todos os eventos mais recentes (as
+operações de decifra AES-GCM dentro de cada `reload()` têm timing
+variável). O evento em si sempre era gravado corretamente no IndexedDB —
+o bug era só a tela do React ficar com um estado desatualizado depois.
+
+- **Correção**: `handleAddSelected` virou `async` e processa as sugestões
+  aceitas **sequencialmente** (`for...of` com `await onAccept(...)`), uma
+  de cada vez — elimina a corrida entre `reload()`s concorrentes.
+- Tipo de `onAccept` corrigido para `Promise<void>` (refletindo que
+  `createTodo` já era assíncrona) e propagado para as interfaces de
+  `MainPanel`/`AddTaskBar` em `app/tarefas/page.tsx`, por consistência.
+- `versionCode 19` / `versionName "1.13"`. Instalado direto via
+  `adb install -r` no S25 Ultra do Thiago para teste imediato (sem esperar
+  o ciclo de release/auto-update).
+
+### Estado de verificação
+
+- `npm run lint`/`test` (128/128)/`build`: ✅.
+- **Não validado visualmente** — a correção é lógica (elimina a race
+  condition), mas só o Thiago pode confirmar aceitando 2+ sugestões de uma
+  vez e vendo todas aparecerem na lista de Tarefas.
+
+### Pendências
+
+1. Thiago confirmar: gerar sugestões, marcar 2 ou mais, "Adicionar
+   selecionadas", e ver todas aparecerem na lista (não só a última).
+2. Publicar release `v19` no GitHub quando confirmado.
+
+---
+
 ## Sessão 2026-09-24 (parte 5) — Validação real do fix biométrico + achado de segurança [Autor: Claude]
 
 ### O que foi feito

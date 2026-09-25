@@ -22,7 +22,7 @@ export interface DiaryTaskSuggestionsProps {
   geminiApiKey: string | null;
   diaryEntries: DiaryEntryItem[];
   existingOpenTodos: string[];
-  onAccept: (texto: string, prioridade: TodoPriority, vencimento: string | null) => void;
+  onAccept: (texto: string, prioridade: TodoPriority, vencimento: string | null) => Promise<void>;
 }
 
 type Status = "idle" | "loading" | "done" | "error";
@@ -78,10 +78,18 @@ export function DiaryTaskSuggestions({
     });
   }
 
-  function handleAddSelected() {
-    suggestions.forEach((s, i) => {
-      if (checked.has(i)) onAccept(s.texto, s.prioridade, s.vencimento);
-    });
+  // Sequencial de propósito: `onAccept` grava um evento e relê todo o log do
+  // IndexedDB (appendEvent + reload). Disparar tudo em paralelo (Promise.all
+  // ou forEach sem await) faz os reloads concorrentes competirem entre si —
+  // o último a resolver "vence" e pode sobrescrever o estado do React com um
+  // snapshot anterior, sem as tarefas recém-criadas (mesmo já persistidas no
+  // banco). Aguardar uma de cada vez elimina a corrida.
+  async function handleAddSelected() {
+    for (const [i, s] of suggestions.entries()) {
+      if (checked.has(i)) {
+        await onAccept(s.texto, s.prioridade, s.vencimento);
+      }
+    }
     closeModal();
   }
 
@@ -182,7 +190,7 @@ export function DiaryTaskSuggestions({
                   </button>
                   <button
                     type="button"
-                    onClick={handleAddSelected}
+                    onClick={() => void handleAddSelected()}
                     disabled={checked.size === 0}
                     className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-background disabled:opacity-50"
                   >

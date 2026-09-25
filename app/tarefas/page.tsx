@@ -252,7 +252,7 @@ function MainPanel({
   diaryEntries: DiaryEntryItem[];
   geminiApiKey: string | null;
   onOpenSidebar: () => void;
-  onCreateTodo: (texto: string, prioridade: TodoPriority, vencimento: string | null) => void;
+  onCreateTodo: (texto: string, prioridade: TodoPriority, vencimento: string | null) => Promise<void>;
   onToggle: (todo: TodoItem) => void;
   onCyclePriority: (todo: TodoItem) => void;
   onReschedule: (todo: TodoItem, value: string) => void;
@@ -469,7 +469,7 @@ function AddTaskBar({
   onCreateTodo,
 }: {
   view: TarefasView;
-  onCreateTodo: (texto: string, prioridade: TodoPriority, vencimento: string | null) => void;
+  onCreateTodo: (texto: string, prioridade: TodoPriority, vencimento: string | null) => Promise<void>;
 }) {
   // Cada view sugere uma data padrão coerente com o que ela representa
   // (Hoje -> hoje, Amanhã -> amanhã). O pai monta este componente com
