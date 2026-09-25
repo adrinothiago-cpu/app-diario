@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useVault } from "@/components/vault-provider";
+import { isBiometricPluginError } from "@/lib/native/biometric";
 
 /**
  * Ativa/desativa o desbloqueio por digital neste aparelho (Android). Some
@@ -52,11 +53,12 @@ export function BiometricUnlockSettings() {
       await enrollBiometric(password);
       setPassword("");
       setOpen(false);
-    } catch (err: any) {
-      if (err?.code === "USER_CANCELED") {
+    } catch (err) {
+      const info = isBiometricPluginError(err) ? err : {};
+      if (info.code === "USER_CANCELED") {
         setError(null);
       } else {
-        setError(err?.message || "Não foi possível ativar — confirme a senha e tente de novo.");
+        setError(info.message || "Não foi possível ativar — confirme a senha e tente de novo.");
       }
     } finally {
       setSaving(false);

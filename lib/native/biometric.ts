@@ -57,3 +57,18 @@ export async function disableBiometricUnlock(): Promise<void> {
   if (!isAndroid()) return;
   await BiometricVault.disable();
 }
+
+/**
+ * Erros rejeitados pelo `BiometricPlugin` chegam como `{ message, code }`
+ * (Capacitor propaga o segundo argumento de `PluginCall.reject` como `code`).
+ * `code` inclui valores fixos (`"USER_CANCELED"`, `"KEY_INVALIDATED"`, etc.)
+ * e variantes dinâmicas (`"BIOMETRIC_ERROR_<n>"`), por isso fica como `string`.
+ */
+export interface BiometricPluginError {
+  message?: string;
+  code?: string;
+}
+
+export function isBiometricPluginError(err: unknown): err is BiometricPluginError {
+  return typeof err === "object" && err !== null;
+}
