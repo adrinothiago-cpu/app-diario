@@ -67,18 +67,19 @@ capturei o logcat de novo — confirmado que `Capacitor/Plugin`,
 vez no log, mesmo com o app carregando normalmente (que antes disparava
 várias dessas linhas ao montar).
 
+- `versionCode 18` / `versionName "1.12"`, commit `fc6e6ed` publicado em
+  `main`, release `v18` publicado no GitHub com o APK debug anexado.
+
 ### Pendências
 
 1. **Assinatura de release (keystore)** — segue como pendência antiga
    (necessária pra qualquer distribuição fora do fluxo debug), mas não é
    mais a única forma de resolver o vazamento de log — já resolvido via
    `loggingBehavior: "none"`.
-2. Publicar release `v18` no GitHub (`versionCode` já bumpado, só falta
-   `gh release create`).
-3. Testar também "Trancar" → "Desbloquear com digital" (o fluxo de unlock já
+2. Testar também "Trancar" → "Desbloquear com digital" (o fluxo de unlock já
    apareceu funcionando no log desta sessão, mas vale confirmação visual
    direta do Thiago).
-4. Pendências antigas seguem abertas: responsividade da guia Tarefas, tela
+3. Pendências antigas seguem abertas: responsividade da guia Tarefas, tela
    de login, OAuth do Drive, geolocalização das entradas de diário.
 
 ---
