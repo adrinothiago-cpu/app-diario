@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { DevTag } from "@/components/dev-tag";
 import { VaultUnlockForm } from "@/components/vault-gate";
 import { useVault } from "@/components/vault-provider";
+import { DiaryTaskSuggestions } from "@/components/tarefas/diary-task-suggestions";
 import { Rail } from "@/components/tarefas/rail";
 import { Sidebar } from "@/components/tarefas/sidebar";
 import {
@@ -17,10 +18,12 @@ import {
   SortIcon,
   UndoIcon,
 } from "@/components/todo-icons";
+import { reduceDiaryEntries } from "@/lib/events/diary-store";
 import { appendEvent, listDecryptedEvents } from "@/lib/events/event-store";
 import { reduceLists } from "@/lib/events/lists-store";
+import { reduceSettings } from "@/lib/events/settings-store";
 import { reduceTodos } from "@/lib/events/todo-store";
-import type { DecryptedEvent, ListItem, TodoItem, TodoPriority } from "@/lib/events/types";
+import type { DecryptedEvent, DiaryEntryItem, ListItem, TodoItem, TodoPriority } from "@/lib/events/types";
 import {
   PRIORITIES,
   SORT_MODE_LABELS,
@@ -96,6 +99,8 @@ function TarefasApp() {
 
   const todos = useMemo(() => reduceTodos(events), [events]);
   const lists = useMemo(() => reduceLists(events), [events]);
+  const diaryEntries = useMemo(() => reduceDiaryEntries(events), [events]);
+  const geminiApiKey = useMemo(() => reduceSettings(events).geminiApiKey, [events]);
 
   async function createList(nome: string, cor: string) {
     if (!key) return;
@@ -211,6 +216,8 @@ function TarefasApp() {
         lists={lists}
         today={today}
         view={view}
+        diaryEntries={diaryEntries}
+        geminiApiKey={geminiApiKey}
         onOpenSidebar={() => setSidebarOpen(true)}
         onCreateTodo={createTodo}
         onToggle={toggle}
@@ -228,6 +235,8 @@ function MainPanel({
   lists,
   today,
   view,
+  diaryEntries,
+  geminiApiKey,
   onOpenSidebar,
   onCreateTodo,
   onToggle,
@@ -240,6 +249,8 @@ function MainPanel({
   lists: ListItem[];
   today: string;
   view: TarefasView;
+  diaryEntries: DiaryEntryItem[];
+  geminiApiKey: string | null;
   onOpenSidebar: () => void;
   onCreateTodo: (texto: string, prioridade: TodoPriority, vencimento: string | null) => void;
   onToggle: (todo: TodoItem) => void;
@@ -312,6 +323,16 @@ function MainPanel({
           <h1 className="text-xl font-semibold tracking-tight">{viewTitle(view, lists)}</h1>
         </div>
         <div ref={sortMenuRef} className="relative flex items-center gap-1 text-muted">
+          {canAdd && (
+            <DiaryTaskSuggestions
+              geminiApiKey={geminiApiKey}
+              diaryEntries={diaryEntries}
+              existingOpenTodos={todos
+                .filter((t) => !t.concluido && t.apagadoEm === null)
+                .map((t) => t.texto)}
+              onAccept={onCreateTodo}
+            />
+          )}
           <button
             type="button"
             onClick={() => setSortMenuOpen((v) => !v)}

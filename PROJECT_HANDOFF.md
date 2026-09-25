@@ -6,6 +6,149 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
 
 ---
 
+## Sessão 2026-09-24 (parte 4) — Integração e revisão do fix biométrico [Autor: Claude]
+
+### O que foi feito
+
+O Antigravity (Gemini) diagnosticou e corrigiu, no ambiente de trabalho dele,
+por que o desbloqueio por digital nunca pedia a impressão no Samsung S25
+Ultra do Thiago (ver seção anterior, dele). Ele tentou primeiro me passar a
+correção via uma URL do Google AI Studio (`ais-dev-*.run.app/biometric-fix-
+s25ultra.patch`) — essa URL nunca serviu o patch de verdade: tanto minha
+tentativa de baixar quanto o arquivo `biometric-fix-s25ultra.patch` que já
+estava solto no projeto eram só a página HTML de "cookie check" do AI
+Studio (exige sessão autenticada, não é um link estático de arquivo). Sinalizei
+isso ao Thiago como prática arriscada (baixar+aplicar+commitar+push de uma
+URL não verificável, sem revisão) antes de prosseguir. Ele então configurou
+um GitHub fine-grained token pro Gemini commitar direto no repositório.
+
+- **Revisão do commit `8324dd6`** (dele, direto no `origin/main` via o token):
+  li o diff completo antes de trazer pro meu working tree — sem chamadas de
+  rede novas, sem nada suspeito, só ajustes legítimos de Keystore/
+  BiometricPrompt. Tecnicamente correto: o bug real era o `BiometricPrompt`
+  sendo construído fora da UI thread (só o `.authenticate()` estava dentro
+  de `runOnUiThread` na minha versão original), faltava
+  `setAllowedAuthenticators(BIOMETRIC_STRONG)` obrigatório ao usar
+  `CryptoObject`, e a API de autenticação de chave estava desatualizada pra
+  API 30+.
+- **Integração sem perder trabalho em paralelo**: eu tinha a feature de
+  sugestão de tarefas via IA (seção anterior) no working tree, não
+  commitada. Guardei com `git stash -u`, tragui o commit dele com
+  `git merge origin/main --ff-only` (sem conflito, arquivos diferentes),
+  validei lint/test/build antes de recuperar meu stash.
+- **Correção de lint no código dele**: `catch (err: any)` em
+  `vault-provider.tsx`/`biometric-unlock-settings.tsx` quebrava
+  `@typescript-eslint/no-explicit-any`. Adicionei
+  `BiometricPluginError`/`isBiometricPluginError` em `lib/native/biometric.ts`
+  pra tipar o `{message, code}` que o Capacitor propaga de
+  `PluginCall.reject`, sem mudar a lógica de tratamento de erro dele
+  (commit `950ced2`).
+- **Reorganização de documentação**: a entrada dele neste arquivo tinha ido
+  parar no fim absoluto (depois até da sessão de bootstrap, a mais antiga)
+  em vez do topo, e sem o cabeçalho `[Autor: Antigravity (Gemini)]` que o
+  `CLAUDE.md` exige para autoria multi-IA — corrigido nesta edição.
+
+### Estado de verificação
+
+- `npm run lint`/`test` (128/128)/`build`: ✅ com o commit dele + minha
+  correção de lint integrados.
+- `npx cap sync android` + `./gradlew assembleDebug`: ✅ `BUILD SUCCESSFUL`
+  (só um aviso de API deprecated, não bloqueante — provavelmente
+  `USE_FINGERPRINT`, permissão legada mas inofensiva).
+- **Não validado no aparelho físico** — só compilação. O teste que importa é
+  o Thiago instalar o `v17`/1.11 no S25 Ultra e confirmar que o prompt de
+  digital aparece agora.
+
+### Pendências
+
+1. Thiago testar no S25 Ultra: desbloqueio por digital (ativar, usar,
+   desativar) precisa funcionar de ponta a ponta agora.
+2. Publicar release `v17` no GitHub quando confirmado (ninguém fez isso
+   ainda — o commit só está em `main`, sem tag/release).
+3. Ver "Sessão 2026-09-24 (parte 2)" para a feature de sugestão de tarefas
+   via IA, ainda não commitada nem publicada.
+
+---
+
+## Sessão 2026-09-24 (parte 3) — Correção Biometria Android 15 / Samsung S25 Ultra (Release v17) [Autor: Antigravity (Gemini)]
+
+### Problema reportado
+Thiago testou o APK no Samsung Galaxy S25 Ultra e o aplicativo falhava ao solicitar a digital.
+
+### Causa raiz diagnosticada
+1. Construtor `new BiometricPrompt()` era instanciado em background worker thread do Capacitor, violando a exigência de UI Thread do `FragmentManager` e `ViewModelProvider` no Android 15.
+2. `BiometricPrompt.PromptInfo` não continha `.setAllowedAuthenticators(BIOMETRIC_STRONG)`, disparando `IllegalArgumentException` imediata ao passar `CryptoObject` em aparelhos com Reconhecimento Facial (Class 2 / WEAK) ativo.
+3. `KeyGenParameterSpec` utilizava método legado em vez de `setUserAuthenticationParameters(0, AUTH_BIOMETRIC_STRONG)` para API 30+.
+4. Chave do Keystore reaproveitada em caso de invalidação prévia, causando loop de falha.
+5. Mensagens de erro engolidas pelo bloco `catch` no React.
+
+### O que foi corrigido
+- **`android/app/src/main/java/com/thiago/diario/BiometricPlugin.java`**: Criação do `BiometricPrompt` totalmente encapsulada em `activity.runOnUiThread`, inclusão obrigatória de `setAllowedAuthenticators(BIOMETRIC_STRONG)`, suporte à API 30+ no Keystore e regeneração atômica de chaves no `enroll`.
+- **`android/app/src/main/AndroidManifest.xml`**: Adicionada permissão `USE_FINGERPRINT` junto de `USE_BIOMETRIC`.
+- **`components/biometric-unlock-settings.tsx`** e **`components/vault-provider.tsx`**: Tratamento adequado de erros nativos e cancelamento pelo usuário sem alerta vermelho.
+- **`android/app/build.gradle`**: Incremento para `versionCode 17` / `versionName "1.11"`.
+
+*(Nota do Claude: entrada original do Antigravity, movida do fim do arquivo para a posição cronológica correta e creditada — ver "parte 4" para a revisão/integração deste commit.)*
+
+---
+
+## Sessão 2026-09-24 (parte 2) — Sugestão de tarefas via Diário (Gemini) [Autor: Claude]
+
+### O que foi feito
+
+Enquanto o Antigravity (Gemini) investigava por que o desbloqueio por digital
+não aparecia no aparelho do Thiago (ver seção anterior), trabalhei em paralelo
+numa feature nova pedida por ele: um botão em `/tarefas` que lê o diário e
+sugere tarefas via Gemini API — mesmo padrão de `/metricas` (insights de
+humor), mas para pendências acionáveis em vez de padrões emocionais. Só toquei
+em arquivos fora da área do desbloqueio biométrico (nenhum arquivo em comum
+com `vault-provider.tsx`/`BiometricPlugin.java`).
+
+- **`lib/insights/gemini-task-suggestions.ts`** (novo, mesmo padrão de
+  `gemini-insights.ts`): `selectEntriesForTaskSuggestions` (até 15 entradas
+  recentes com texto/transcrição), `buildTaskSuggestionsPrompt` (pede ação
+  concreta mencionada no diário, resolve datas relativas para ISO absoluto
+  usando a data de hoje, evita duplicar tarefas já ativas — a lista de
+  tarefas ativas é passada no prompt —, no máximo 8 sugestões),
+  `parseTaskSuggestionsResponse` (parsing estrito) e `generateTaskSuggestions`
+  (orquestração). Testado em `gemini-task-suggestions.test.ts` (14 testes).
+- **`components/tarefas/diary-task-suggestions.tsx`** (novo): botão (ícone
+  novo `SparkleIcon` em `components/todo-icons.tsx`) no cabeçalho de
+  `/tarefas`, ao lado de "Ordenar". Abre um modal em duas etapas deliberadas —
+  abrir o modal não envia nada; só "Gerar sugestões agora" dispara a chamada
+  à Gemini — com aviso de privacidade visível antes do envio. Cada sugestão
+  tem checkbox (todas marcadas por padrão); só "Adicionar selecionadas" cria
+  as tarefas de verdade (`todo_created`) — as sugestões em si nunca são
+  persistidas como evento, são um resultado efêmero da sessão.
+- **`app/tarefas/page.tsx`**: deriva `diaryEntries` (`reduceDiaryEntries`) e
+  `geminiApiKey` (`reduceSettings`) a partir do mesmo log de eventos já
+  carregado (não precisa de leitura extra — todo o log já vem junto).
+- Documentado como mais uma exceção de zero-knowledge ampliada em
+  `ARCHITECTURE.md`.
+
+### Estado de verificação
+
+- `npm run lint`/`test` (128/128, 14 novos)/`build`: ✅.
+- **Não validado visualmente** — tentei abrir no Chrome via automação, mas a
+  extensão não estava conectada neste ambiente. Não testei com uma chave
+  Gemini real (não tenho uma configurada aqui), então o parsing de resposta
+  real pode precisar de ajuste no primeiro uso de verdade, como aconteceu
+  antes com a transcrição de voz.
+- Não sincronizei/compilei o Android para esta parte (é só web/PWA — o botão
+  aparece igual no app Android também, já que é tudo a mesma UI React, mas
+  não gerei uma nova APK só por causa disso).
+
+### Pendências
+
+1. Thiago testar de verdade: abrir `/tarefas`, escrever uma entrada no diário
+   tipo "preciso ligar pro dentista amanhã", ir em Tarefas, clicar no ícone de
+   sugestão (✨) ao lado de "Ordenar", gerar, e conferir se a sugestão faz
+   sentido e a data foi resolvida certo.
+2. Ver também a seção anterior (desbloqueio por digital) para o que o Gemini
+   estava investigando em paralelo.
+
+---
+
 ## Sessão 2026-09-24 — Desbloqueio por biometria (Android)
 
 ### O que foi feito
@@ -1125,22 +1268,3 @@ artefato da minha verificação, o Thiago pode apagar ou manter.
 4. Decidir fluxo OAuth do Google Drive sem backend (PKCE em app nativo +
    desktop) — pesquisar limitações do `appDataFolder` com chave de API pública.
 5. Validar visualmente a página placeholder (`npm run dev`).
-
-
-## Sessão 2026-09-24 — Correção Biometria Android 15 / Samsung S25 Ultra (Release v17)
-
-### Problema reportado
-Thiago testou o APK no Samsung Galaxy S25 Ultra e o aplicativo falhava ao solicitar a digital.
-
-### Causa raiz diagnosticada
-1. Construtor `new BiometricPrompt()` era instanciado em background worker thread do Capacitor, violando a exigência de UI Thread do `FragmentManager` e `ViewModelProvider` no Android 15.
-2. `BiometricPrompt.PromptInfo` não continha `.setAllowedAuthenticators(BIOMETRIC_STRONG)`, disparando `IllegalArgumentException` imediata ao passar `CryptoObject` em aparelhos com Reconhecimento Facial (Class 2 / WEAK) ativo.
-3. `KeyGenParameterSpec` utilizava método legado em vez de `setUserAuthenticationParameters(0, AUTH_BIOMETRIC_STRONG)` para API 30+.
-4. Chave do Keystore reaproveitada em caso de invalidação prévia, causando loop de falha.
-5. Mensagens de erro engolidas pelo bloco `catch` no React.
-
-### O que foi corrigido
-- **`android/app/src/main/java/com/thiago/diario/BiometricPlugin.java`**: Criação do `BiometricPrompt` totalmente encapsulada em `activity.runOnUiThread`, inclusão obrigatória de `setAllowedAuthenticators(BIOMETRIC_STRONG)`, suporte à API 30+ no Keystore e regeneração atômica de chaves no `enroll`.
-- **`android/app/src/main/AndroidManifest.xml`**: Adicionada permissão `USE_FINGERPRINT` junto de `USE_BIOMETRIC`.
-- **`components/biometric-unlock-settings.tsx`** e **`components/vault-provider.tsx`**: Tratamento adequado de erros nativos e cancelamento pelo usuário sem alerta vermelho.
-- **`android/app/build.gradle`**: Incremento para `versionCode 17` / `versionName "1.11"`.

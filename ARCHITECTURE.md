@@ -54,6 +54,16 @@ imutáveis; mudanças exigem decisão explícita do dono do projeto registrada n
   satisfação = ponto positivo com reforço psicológico; causou atrito ou problema =
   ponto negativo objetivo), focada na recompensa e na evolução da pessoa em
   relação a si mesma.
+- **Exceção de zero-knowledge ampliada — Sugestão de tarefas via diário (decisão
+  do Thiago, 2026-09-24)**: `lib/insights/gemini-task-suggestions.ts`, botão na
+  página `/tarefas`. Envia o texto (escrito e/ou transcrito) de até 15 entradas
+  recentes do diário à Gemini API para identificar pendências/compromissos
+  mencionados e sugeri-los como tarefas. Estritamente manual em duas etapas: abrir
+  o painel não envia nada; só o clique em "Gerar sugestões agora" dispara a
+  chamada. Nada é persistido automaticamente — o resultado é uma lista efêmera
+  (nunca vira evento) que o usuário revisa e marca item a item; só as sugestões
+  aceitas viram `todo_created` de verdade. Mesma chave da Gemini API já cifrada
+  no vault (evento `settings_updated`), nenhum schema novo de armazenamento.
 
 ## Desbloqueio por biometria (Android, opcional — decisão do Thiago, 2026-09-24)
 
