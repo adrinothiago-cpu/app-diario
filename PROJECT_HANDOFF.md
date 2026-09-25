@@ -59,14 +59,17 @@ um GitHub fine-grained token pro Gemini commitar direto no repositório.
   o Thiago instalar o `v17`/1.11 no S25 Ultra e confirmar que o prompt de
   digital aparece agora.
 
+- `versionCode 17` / `versionName "1.11"`, commits `950ced2` e `7a33e3b`
+  publicados em `main`, release `v17` publicado no GitHub com o APK debug
+  anexado (inclui o fix biométrico do Gemini + a sugestão de tarefas via IA).
+
 ### Pendências
 
-1. Thiago testar no S25 Ultra: desbloqueio por digital (ativar, usar,
-   desativar) precisa funcionar de ponta a ponta agora.
-2. Publicar release `v17` no GitHub quando confirmado (ninguém fez isso
-   ainda — o commit só está em `main`, sem tag/release).
-3. Ver "Sessão 2026-09-24 (parte 2)" para a feature de sugestão de tarefas
-   via IA, ainda não commitada nem publicada.
+1. **Prioridade**: Thiago atualizar via o banner de auto-update (ou instalar
+   o `v17` manualmente) e confirmar no S25 Ultra que o desbloqueio por
+   digital finalmente pede a impressão (ativar, usar, desativar).
+2. Ver "Sessão 2026-09-24 (parte 2)" para testar também a sugestão de
+   tarefas via IA.
 
 ---
 
