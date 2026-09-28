@@ -33,7 +33,7 @@ export default function AuditoriaPage() {
 }
 
 function AuditoriaTables() {
-  const { key } = useVault();
+  const { key, dataVersion } = useVault();
   const [events, setEvents] = useState<DecryptedEvent[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -45,7 +45,7 @@ function AuditoriaTables() {
   useEffect(() => {
     if (!key) return;
     listDecryptedEvents(key).then((decrypted) => setEvents(decrypted));
-  }, [key]);
+  }, [key, dataVersion]);
 
   async function handleAddWorkout() {
     if (!key) return;

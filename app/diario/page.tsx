@@ -59,7 +59,7 @@ export default function DiarioPage() {
 }
 
 function DiaryContent() {
-  const { key } = useVault();
+  const { key, dataVersion } = useVault();
   const [entries, setEntries] = useState<DiaryEntryItem[]>([]);
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
   const [conteudo, setConteudo] = useState("");
@@ -81,7 +81,7 @@ function DiaryContent() {
       setEntries(reduceDiaryEntries(decrypted));
       setGeminiApiKey(reduceSettings(decrypted).geminiApiKey);
     });
-  }, [key]);
+  }, [key, dataVersion]);
 
   async function handleSave() {
     if (!key) return;

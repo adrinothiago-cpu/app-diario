@@ -8,6 +8,8 @@ import { decryptEvent, encryptEvent } from "@/lib/crypto/cipher";
 import { getAllRecords, putRecord } from "@/lib/db/indexeddb";
 import type { AppEvent, DecryptedEvent, StoredEvent } from "./types";
 
+export const EVENT_APPENDED = "diario:event-appended";
+
 export function generateEventId(): string {
   return `evt_${Date.now()}_${crypto.randomUUID()}`;
 }
@@ -16,6 +18,8 @@ export async function appendEvent(key: CryptoKey, event: AppEvent): Promise<Stor
   const blob = await encryptEvent(key, event);
   const stored: StoredEvent = { id: generateEventId(), createdAt: Date.now(), blob };
   await putRecord("events", stored);
+  // Avisa a sincronização (`components/sync-provider.tsx`) que há evento novo pra subir.
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVENT_APPENDED));
   return stored;
 }
 

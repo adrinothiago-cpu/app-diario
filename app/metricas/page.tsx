@@ -65,7 +65,7 @@ export default function MetricasPage() {
 }
 
 function MetricasContent() {
-  const { key } = useVault();
+  const { key, dataVersion } = useVault();
   const [entries, setEntries] = useState<DiaryEntryItem[]>([]);
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
   const [insights, setInsights] = useState<MoodInsights | null>(null);
@@ -89,7 +89,7 @@ function MetricasContent() {
       setGeminiApiKey(reduceSettings(decrypted).geminiApiKey);
       setInsights(reduceMoodInsights(decrypted));
     });
-  }, [key]);
+  }, [key, dataVersion]);
 
   const eligible = selectEntriesForInsights(entries);
 

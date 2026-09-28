@@ -54,6 +54,11 @@ interface VaultContextValue {
   enrollBiometric: (password: string) => Promise<void>;
   /** Desativa o desbloqueio por digital neste aparelho. */
   disableBiometric: () => Promise<void>;
+  /** Muda quando eventos chegam por fora das telas (sincronização) — telas recarregam o log. */
+  dataVersion: number;
+  bumpDataVersion: () => void;
+  /** Troca a chave da sessão — usado quando a sincronização adota o cofre de outro aparelho. */
+  adoptKey: (newKey: CryptoKey) => void;
 }
 
 const VaultContext = createContext<VaultContextValue | null>(null);
@@ -65,6 +70,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnrolled, setBiometricEnrolled] = useState(false);
   const autoUnlockTried = useRef(false);
+  const [dataVersion, setDataVersion] = useState(0);
+  const bumpDataVersion = useCallback(() => setDataVersion((v) => v + 1), []);
+  const adoptKey = useCallback((newKey: CryptoKey) => setKey(newKey), []);
 
   const refreshBiometricState = useCallback(async () => {
     const [available, enrolled] = await Promise.all([isBiometricAvailable(), hasBiometricEnrolled()]);
@@ -190,6 +198,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         unlockWithBiometric,
         enrollBiometric,
         disableBiometric,
+        dataVersion,
+        bumpDataVersion,
+        adoptKey,
       }}
     >
       {children}

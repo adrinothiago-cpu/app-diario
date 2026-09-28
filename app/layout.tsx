@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { TopTabs } from "@/components/top-tabs";
+import { SyncProvider } from "@/components/sync-provider";
 import { UpdateBanner } from "@/components/update-banner";
 import { VaultProvider } from "@/components/vault-provider";
 import "./globals.css";
@@ -36,9 +37,11 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <VaultProvider>
-          <UpdateBanner />
-          <TopTabs />
-          {children}
+          <SyncProvider>
+            <UpdateBanner />
+            <TopTabs />
+            {children}
+          </SyncProvider>
         </VaultProvider>
       </body>
     </html>

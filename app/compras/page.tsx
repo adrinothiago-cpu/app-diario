@@ -45,7 +45,7 @@ type BulkStatus = "idle" | "running" | "done";
 type PriceSearchTarget = { id: string; nome: string; observacao: string | null };
 
 function ComprasApp() {
-  const { key } = useVault();
+  const { key, dataVersion } = useVault();
   const [events, setEvents] = useState<DecryptedEvent[]>([]);
   const [showTrash, setShowTrash] = useState(false);
   const [bulkStatus, setBulkStatus] = useState<BulkStatus>("idle");
@@ -61,7 +61,7 @@ function ComprasApp() {
   useEffect(() => {
     if (!key) return;
     listDecryptedEvents(key).then(setEvents);
-  }, [key]);
+  }, [key, dataVersion]);
 
   async function reload() {
     if (!key) return;

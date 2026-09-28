@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppVersion } from "@/components/app-version";
 import { DevTag } from "@/components/dev-tag";
+import { SyncPanel } from "@/components/sync-panel";
 
 export default function Home() {
   return (
@@ -12,6 +13,7 @@ export default function Home() {
         a ponta. Base do projeto configurada — módulos em construção.
       </p>
       <div className="grid w-full max-w-md gap-3">
+        <SyncPanel />
         <section className="rounded-xl border border-border bg-surface p-4">
           <h2 className="font-medium">Treino</h2>
           <p className="text-sm text-muted">Fichas e modo execução — em breve.</p>

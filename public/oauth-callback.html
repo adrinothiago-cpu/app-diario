@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Login do Google</title>
+    <style>
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0b0e14; color: #e6e9ef; font-family: system-ui, sans-serif; }
+    </style>
+  </head>
+  <body>
+    <p id="msg">Concluindo login…</p>
+    <script>
+      // Retorno do login do Google (ver lib/sync/google-auth.ts). Repassa o
+      // token pra aba do app por BroadcastChannel — window.opener não serve,
+      // a página de login do Google corta essa ligação (COOP). O hash some
+      // do histórico antes de fechar.
+      var hash = window.location.hash;
+      history.replaceState(null, "", window.location.pathname);
+      var channel = new BroadcastChannel("diario-oauth");
+      channel.postMessage({ hash: hash });
+      channel.close();
+      document.getElementById("msg").textContent = "Login concluído — pode fechar esta janela.";
+      setTimeout(function () { window.close(); }, 300);
+    </script>
+  </body>
+</html>

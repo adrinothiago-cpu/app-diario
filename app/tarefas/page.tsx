@@ -75,7 +75,7 @@ function TarefasGate() {
 }
 
 function TarefasApp() {
-  const { key } = useVault();
+  const { key, dataVersion } = useVault();
   const [events, setEvents] = useState<DecryptedEvent[]>([]);
   const [view, setView] = useState<TarefasView>({ type: "hoje" });
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -90,7 +90,7 @@ function TarefasApp() {
   useEffect(() => {
     if (!key) return;
     listDecryptedEvents(key).then(setEvents);
-  }, [key]);
+  }, [key, dataVersion]);
 
   async function reload() {
     if (!key) return;

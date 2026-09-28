@@ -6,6 +6,57 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
 
 ---
 
+## Sessão 2026-09-28 (parte 2) — Sincronização com Google Drive [Autor: Claude]
+
+### Achado crítico
+
+O Thiago achava que os dados do celular já estavam cifrados no Google. **Não
+estavam**: o sync com Drive era pendência desde o bootstrap ("OAuth PKCE do
+Google Drive sem backend") e nunca foi feito; com `allowBackup="false"`,
+nem o backup do Android copiava. Até esta versão, os dados existiam só no
+IndexedDB do app no celular.
+
+### O que foi feito
+
+- `lib/sync/drive.ts` (REST v3 só na `appDataFolder`), `lib/sync/sync.ts`
+  (união de eventos por id + adoção de cofre com recifragem),
+  `lib/sync/google-auth.ts` (token: plugin nativo no Android, janela OAuth
+  no PC), `public/oauth-callback.html`.
+- `components/sync-provider.tsx`: sync automática ao destravar, 5 s após
+  evento novo e ao voltar pro app; diálogo de senha quando o Drive tem
+  cofre de outro aparelho. `components/sync-panel.tsx` na tela Início.
+- `VaultProvider` ganhou `dataVersion` (as 5 telas recarregam o log quando
+  a sync traz dados) e `adoptKey`. `appendEvent` emite `diario:event-appended`.
+- Android: `GoogleDriveAuthPlugin.java` + `play-services-auth:21.3.0`.
+  APK debug compila (8,9 MB).
+- Removidos do cofre do PC 3 eventos de teste criados pelo Claude na sessão
+  anterior (chave Gemini falsa + "Item de teste 2"), pra não irem pro
+  celular — a chave falsa, por ser a mais recente, passaria a valer lá.
+
+### Estado de verificação
+
+- 11 testes novos (`lib/sync/*.test.ts`): primeiro aparelho publica cofre,
+  união nos dois sentidos, adoção com recifragem, senha errada não toca em
+  nada, cancelamento, evento que não decifra é descartado.
+- PC na tela: painel aparece; sem Client ID mostra o erro certo.
+- **Não testado ponta a ponta** — depende do Thiago criar o projeto no
+  Google Cloud (credenciais Web + Android).
+
+### Pendências
+
+1. Thiago: criar projeto Google Cloud, ativar Drive API, tela de
+   consentimento (modo teste, e-mail dele como testador), cliente OAuth Web
+   (origem `http://localhost:3000`, redirect
+   `http://localhost:3000/oauth-callback.html`) e cliente Android
+   (`com.thiago.diario`, SHA-1 `5B:D4:32:19:86:2F:81:47:EC:84:CF:5A:A7:D0:0C:B9:61:A4:FC:3B`
+   do `~/.android/debug.keystore`). Colocar o Client ID web em
+   `NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` no `.env.local`.
+2. Instalar o APK no celular, conectar e sincronizar; depois puxar no PC.
+3. O APK é assinado pelo debug keystore desta máquina: se ele mudar, o
+   Android recusa a atualização e desinstalar apaga os dados locais.
+
+---
+
 ## Sessão 2026-09-28 — Nova seção Compras + busca de menor preço [Autor: Claude]
 
 ### O que foi feito

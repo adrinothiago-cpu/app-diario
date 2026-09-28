@@ -30,6 +30,11 @@ export async function deriveMasterKeyBits(
   );
 }
 
+/** Atalho senha + salt → chave AES-GCM dos eventos (mesmo caminho do desbloqueio do cofre). */
+export async function deriveEventKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
+  return deriveSubkey(await deriveMasterKeyBits(password, salt), "event-encryption");
+}
+
 export type SubkeyPurpose = "event-encryption" | "session-hmac";
 
 /** HKDF-SHA256: deriva uma subchave isolada por finalidade a partir do material mestre. */

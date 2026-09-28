@@ -22,6 +22,15 @@ export async function getOrCreateSalt(): Promise<Uint8Array> {
   return salt;
 }
 
+/**
+ * Troca o salt do cofre — usado só pela sincronização ao adotar o cofre de
+ * outro aparelho (`lib/sync/sync.ts`), depois de recifrar todos os eventos
+ * locais com a chave derivada do novo salt. O salt não é segredo.
+ */
+export async function setSalt(salt: Uint8Array): Promise<void> {
+  await putRecord("meta", { key: SALT_KEY, value: salt.slice().buffer } satisfies MetaRecord<ArrayBuffer>);
+}
+
 export async function checkAndRecordLoginAttempt(): Promise<{ allowed: boolean }> {
   const now = Date.now();
   const record = await getRecord<MetaRecord<number[]>>("meta", LOGIN_ATTEMPTS_KEY);

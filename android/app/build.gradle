@@ -36,6 +36,8 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation "androidx.biometric:biometric:1.1.0"
+    // Login do Google (AuthorizationClient) pro token do Drive — ver GoogleDriveAuthPlugin.java.
+    implementation "com.google.android.gms:play-services-auth:21.3.0"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

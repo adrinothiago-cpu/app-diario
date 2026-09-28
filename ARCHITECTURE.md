@@ -22,6 +22,19 @@ imutáveis; mudanças exigem decisão explícita do dono do projeto registrada n
 - **Persistência local**: IndexedDB via wrapper leve próprio (sem ORM pesado).
 - **Remoto**: Google Drive REST API, apenas `/appDataFolder`, apenas payloads
   cifrados. Sem banco relacional hospedado, sem Vercel/Node em produção.
+  Implementado em 2026-09-28 (`lib/sync/`, `components/sync-provider.tsx`):
+  - Cada evento vira o arquivo `<id>.enc` (o mesmo blob IV||ciphertext do
+    IndexedDB); sync = união por id (log append-only, sem conflito).
+  - `vault.json` guarda o salt do PBKDF2 (não é segredo). Aparelho com salt
+    diferente adota o do Drive: pede a senha daquele cofre, confere
+    decifrando um evento remoto, recifra os eventos locais e troca o salt.
+  - Escopo OAuth só `drive.appdata`. Token só em memória. Login: PC via
+    janela OAuth (`public/oauth-callback.html` devolve por
+    `BroadcastChannel`); Android via `GoogleDriveAuthPlugin.java`
+    (`AuthorizationClient` do Play Services — Google bloqueia login em WebView).
+  - Clientes OAuth "Web" e "Android" no **mesmo** projeto Google Cloud (a
+    `appDataFolder` é por projeto). Client ID web em
+    `NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` (público por design; sem client secret).
 - **Exceção pontual (decisão do Thiago, 2026-09-11)**: auto-update consulta a
   API pública do GitHub (`lib/update/check-update.ts`) para saber a versão
   mais recente e baixar o APK do release — único tráfego de rede do app que
