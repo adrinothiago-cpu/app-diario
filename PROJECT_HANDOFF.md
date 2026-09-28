@@ -6,6 +6,141 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
 
 ---
 
+## Sessão 2026-09-28 — Nova seção Compras + busca de menor preço [Autor: Claude]
+
+### O que foi feito
+
+- **Nova seção `/compras`** (aba na navegação, `components/top-tabs.tsx`):
+  lista de itens de compra com o mesmo padrão event-sourced das tarefas —
+  eventos `purchase_created/updated/toggled/deleted/restored` +
+  `purchase_price_search_updated`, reduzidos em `lib/events/purchase-store.ts`
+  (`reducePurchases`, espelha `reduceTodos`). Soft delete com lixeira, igual
+  às tarefas.
+- **Busca de menor preço via Gemini API** (`lib/insights/gemini-price-search.ts`):
+  usa a ferramenta `google_search` da Interactions API (grounding real —
+  sem isso o modelo alucinaria preços). Precisei estender
+  `lib/gemini/client.ts` (`callGeminiInteraction`) pra aceitar `tools` no
+  payload e priorizar o step `model_output` na extração do texto (evita
+  misturar HTML de resultado de busca quando a ferramenta está ativa).
+- **Opt-in por item, não varredura automática de tudo** (pedido explícito do
+  Thiago): campo `incluirBusca` no evento/estado do item. Marcar o checkbox
+  "Varrer" de um item (ou criar um item já marcado) dispara a busca daquele
+  item imediatamente, com feedback inline na própria linha ("Buscando menor
+  preço na internet…" → resultado ou erro). Um botão em lote no topo permite
+  reexecutar a busca de todos os itens já marcados de uma vez (útil pra
+  atualizar preço depois de um tempo).
+- **Bugfix real encontrado testando na tela** (`lib/gemini/client.ts`): chave
+  de API inválida faz a Gemini API responder **400** (`API_KEY_INVALID` no
+  corpo), não 401/403 como o código assumia — por isso ele insistia
+  testando todos os ~10 modelos candidatos em vez de falhar rápido com uma
+  mensagem clara. Corrigido checando o corpo da resposta independente do
+  status HTTP; adicionada classe `GeminiInvalidKeyError` pra propagar esse
+  erro fatal sem depender de re-parsear a mensagem de texto (havia uma
+  segunda checagem inconsistente no `catch` externo que mascarava o fix
+  inicial — só apareceu ao rodar o teste de verdade contra a API real).
+- **Segunda fonte de busca, sem depender só da Gemini** (pedido do Thiago):
+  Buscapé (agregador de preços BR, sem chave de API) em `lib/prices/buscape.ts`,
+  usado pela automação do app **e** pelo CLI `npm run buscar-preco -- "produto"`
+  (`scripts/buscar-preco.ts`). `lib/prices/search.ts` roda Gemini + Buscapé em
+  paralelo: sem chave (ou chave inválida) a automação continua só com o
+  Buscapé e avisa no final com link pro Diário (pedido do Thiago: "os
+  resultados da automação devem continuar"). O Buscapé não libera CORS: no
+  Android o app usa HTTP nativo do Capacitor; no PC, o Thiago abriu uma
+  **exceção de backend só pra Compras** — servidor local mínimo
+  `scripts/servidor-precos.ts` (127.0.0.1, só origem do app, só
+  `GET /buscape`; limites em `ARCHITECTURE.md`). O CLI lê a chave de
+  `GEMINI_API_KEY` em `.env.local` na raiz. Scraping direto de
+  Mercado Livre/Amazon foi testado e descartado: ambos bloqueiam requisição
+  simples (Mercado Livre redireciona pra verificação de conta, Amazon
+  devolve página de erro anti-bot; a API pública de busca por texto do
+  Mercado Livre também está bloqueada — 403, exige credencial de app
+  registrado hoje). O Buscapé responde 200 e embute os resultados como JSON
+  de estado (`__NEXT_DATA__`) na própria página. Correspondência de nome
+  tolerante (não exige nome exato): Jaccard de palavras + filtro de "recall"
+  mínimo (metade das palavras significativas da busca precisam aparecer no
+  candidato) com lista de stopwords em português — sem o filtro de recall,
+  uma busca sem produto real correspondente "acertava" por coincidência de
+  palavras genéricas tipo "que"/"não" (achado testando com uma busca
+  proposital sem correspondência real). Registrado em `ARCHITECTURE.md` como
+  exceção de zero-knowledge (o nome do item vai pro buscape.com.br).
+- **Lista completa de resultados** embaixo de cada item (até 10: preço,
+  loja, nome do produto, "ver na loja ↗"). Link usa o redirecionamento da
+  oferta no Buscapé (`/lead?oid=`), que cai na página da loja — nunca é
+  seguido automaticamente, porque cada acesso registra um clique pago pela
+  loja.
+- **Filtro de relevância endurecido** (`isPlausibleMatch` em
+  `lib/prices/buscape.ts`) após o Thiago reportar que "parachoque dianteiro
+  hb20" listava guia de suporte, pastilha de freio, grade e refletor
+  traseiro: palavra principal da busca entre as 2 primeiras do nome,
+  acessórios (guia, suporte, capa…) vetados se não pedidos, posição oposta
+  (dianteiro × traseiro) vetada.
+- **Não viável (testado)**: frete por CEP — Buscapé não informa frete e as
+  lojas (Magalu, Amazon) bloqueiam acesso automático (403); Shopee (API de
+  busca bloqueia com erro anti-bot 90309999) e Mercado Livre (site pede
+  verificação de conta, API 403). Outros comparadores testados (Zoom e
+  Bondfaro = mesmo catálogo do Buscapé; JáCotei 403; Pelando/Promobit são
+  comunidades de promoção) também não cobrem Shopee/ML. Ler resultados do
+  Google via fetch viola os termos dele — o caminho legítimo é a própria
+  Gemini (grounding com Google): o prompt agora obriga buscas separadas com
+  `site:mercadolivre.com.br` e `site:shopee.com.br`, pede o nome do anúncio
+  e proíbe peças/acessórios. Não testado de verdade (sem chave válida).
+  Não contornar proteção anti-bot. O CEP do
+  Thiago **não** foi salvo em lugar nenhum (repo é público).
+- Mensagem de chave inválida legível: a Interactions API devolve o erro
+  embrulhado em array (`[{ "error": ... }]`) e o parser só lia objeto — a
+  tela mostrava JSON cru. Corrigido em `parseErrorMessage`.
+
+### Decisões e justificativas
+
+- Python foi cogitado pro script de busca e descartado: o projeto já roda
+  inteiro em Node (Next.js/Vitest/ESLint), então um script em Node reaproveita
+  esse runtime sem exigir um segundo ecossistema (venv/pip) — mais leve em
+  disco e em manutenção do que a alternativa em Python.
+- Gemini com `google_search` continua sendo a fonte **principal** dentro do
+  app (já integrada ao fluxo/UI); o Buscapé é deliberadamente uma ferramenta
+  **separada** de terminal, não substitui nem se conecta ao botão "Varrer" —
+  o app continua 100% sem backend próprio.
+
+### Estado de verificação
+
+- `npm run test` (vitest): ✅ 175/175 (21 arquivos).
+- `npx tsc --noEmit`: ✅ zerado.
+- `npx eslint`: ✅ zerado nos arquivos tocados.
+- `npm run buscar-preco -- "<produto>"`: ✅ testado ao vivo contra a
+  internet real (sem chave e com chave falsa via variável de ambiente) —
+  preços reais do Buscapé + aviso correto de chave no final.
+- App no navegador do PC com `servidor-precos` rodando (**visto na tela**):
+  "Atualizar preços" → "Menor preço: R$ 44,97 em Amazon" na linha do item +
+  aviso "Chave da Gemini API inválida — resultados só do Buscapé.
+  Configurar a chave no Diário" (a chave salva ainda é a fake dos testes).
+- Servidor de preços: testado com curl — origem do app 200, origem
+  estranha 403, rota inexistente 404, escuta só em 127.0.0.1.
+- **Não testado**: Buscapé dentro do APK Android (caminho `CapacitorHttp`)
+  — precisa build + instalar no S25 Ultra.
+- **UI testada de verdade no navegador** (Claude in Chrome, extensão no
+  Brave): criar item, marcar "Varrer" (dispara busca + mostra "Buscando…"
+  inline), erro tratado exibido na tela (testado com uma chave Gemini fake
+  de propósito — nunca a chave real do Thiago), modal de busca individual
+  por item, lixeira + restaurar. **Não testado**: o caminho de sucesso
+  (preços reais retornando *dentro do app*, via Gemini) — só verificado via
+  CLI (Buscapé). Falta o Thiago configurar a chave Gemini real em
+  `/diario` e clicar em "Varrer" pra confirmar esse caminho.
+- Ficou um item de teste ("Item de teste 2") na lixeira do vault usado nos
+  testes de UI — dado de teste, sem problema ignorar ou restaurar/excluir.
+
+### Pendências / próximos passos sugeridos
+
+1. Thiago configurar a chave Gemini real em `/diario` (a que está lá agora é
+   um valor fake de teste) e confirmar visualmente o caminho de sucesso da
+   busca de preço dentro do app.
+2. Build + instalar no Android e confirmar que o Buscapé traz preços sem
+   chave da Gemini (caminho `CapacitorHttp`, não testável no PC).
+3. `android/app/build.gradle` já está em `versionCode 20`/`1.14` (mudança
+   pré-existente no início desta sessão, não mexida aqui) — decidir se essa
+   feature entra nesse mesmo release ou num seguinte antes de publicar.
+
+---
+
 ## Sessão 2026-09-24 (parte 6) — Bug: sugestão de tarefa aceita não vira tarefa [Autor: Claude]
 
 ### O que foi feito

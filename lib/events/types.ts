@@ -175,6 +175,69 @@ export interface MoodInsightsUpdatedEvent {
   modeloUsado?: string;
 }
 
+/**
+ * Itens de compra (lista de desejos/compras a fazer). Mesmo padrão de delta
+ * das tarefas: criar/editar/marcar/apagar geram eventos próprios, o estado
+ * atual é derivado reduzindo por `purchaseId` (ver `lib/events/purchase-store.ts`).
+ */
+export interface PurchaseCreatedEvent {
+  type: "purchase_created";
+  purchaseId: string;
+  nome: string;
+  quantidade?: number | null;
+  observacao?: string | null;
+  /** Opt-in explícito: só itens marcados entram na varredura em lote (default false — ver `incluirBusca` em `PurchaseItem`). */
+  incluirBusca?: boolean;
+}
+
+/** Patch parcial: só as chaves presentes são aplicadas (chave ausente = inalterada). */
+export interface PurchaseUpdatedEvent {
+  type: "purchase_updated";
+  purchaseId: string;
+  nome?: string;
+  quantidade?: number | null;
+  observacao?: string | null;
+  incluirBusca?: boolean;
+}
+
+export interface PurchaseToggledEvent {
+  type: "purchase_toggled";
+  purchaseId: string;
+  comprado: boolean;
+}
+
+/** Exclusão lógica (soft delete), igual às tarefas — reaparece na Lixeira. */
+export interface PurchaseDeletedEvent {
+  type: "purchase_deleted";
+  purchaseId: string;
+}
+
+export interface PurchaseRestoredEvent {
+  type: "purchase_restored";
+  purchaseId: string;
+}
+
+export interface PurchasePriceResult {
+  loja: string;
+  preco: number;
+  url: string;
+  /** Opcional: eventos antigos e resultados da Gemini não trazem. */
+  nome?: string;
+}
+
+/**
+ * Resultado de uma busca de menor preço via Gemini API com grounding de
+ * busca do Google (`lib/insights/gemini-price-search.ts`). Append-only como
+ * o resto do log: cada nova busca grava um evento completo novo, o reducer
+ * usa sempre o mais recente por `purchaseId`.
+ */
+export interface PurchasePriceSearchUpdatedEvent {
+  type: "purchase_price_search_updated";
+  purchaseId: string;
+  resultados: PurchasePriceResult[];
+  modeloUsado?: string;
+}
+
 export type AppEvent =
   | WorkoutSetEvent
   | DiaryEntryEvent
@@ -189,7 +252,13 @@ export type AppEvent =
   | TodoRestoredEvent
   | SettingsUpdatedEvent
   | DiaryTranscriptionAddedEvent
-  | MoodInsightsUpdatedEvent;
+  | MoodInsightsUpdatedEvent
+  | PurchaseCreatedEvent
+  | PurchaseUpdatedEvent
+  | PurchaseToggledEvent
+  | PurchaseDeletedEvent
+  | PurchaseRestoredEvent
+  | PurchasePriceSearchUpdatedEvent;
 
 /** Registro persistido no IndexedDB: envelope binário opaco (id em texto, resto é ciphertext). */
 export interface StoredEvent {
@@ -222,6 +291,25 @@ export interface ListItem {
   nome: string;
   cor: string;
   criadoEm: number;
+}
+
+/** Estado derivado de um item de compra, reconstruído a partir dos eventos de delta. */
+export interface PurchaseItem {
+  id: string;
+  nome: string;
+  quantidade: number | null;
+  observacao: string | null;
+  comprado: boolean;
+  compradoEm: number | null;
+  apagadoEm: number | null;
+  criadoEm: number;
+  /** Opt-in: só true quando o usuário marcou este item explicitamente — a varredura em lote nunca pega itens não marcados. */
+  incluirBusca: boolean;
+  /** Resultados da última busca de preço (menor primeiro); vazio quando nunca buscado. */
+  precos: PurchasePriceResult[];
+  precosModeloUsado: string | null;
+  /** Timestamp (createdAt do evento) da última busca de preço; null quando nunca buscado. */
+  precosBuscadoEm: number | null;
 }
 
 /**

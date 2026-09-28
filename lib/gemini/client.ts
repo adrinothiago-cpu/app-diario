@@ -34,6 +34,9 @@ export type InteractionInputBlock =
   | { type: "text"; text: string }
   | { type: "audio"; data: string; mime_type: string };
 
+/** Ferramenta de busca do Google — grounding com resultados reais da web (ver `lib/insights/gemini-price-search.ts`). */
+export type InteractionTool = { type: "google_search" };
+
 interface ContentBlock {
   type?: string;
   text?: string;
@@ -51,10 +54,15 @@ interface InteractionResponse {
 
 export class GeminiCallError extends Error {}
 
+/** Chave de API explicitamente inválida — erro fatal, nunca adianta tentar outro modelo candidato. */
+export class GeminiInvalidKeyError extends GeminiCallError {}
+
 export function parseErrorMessage(status: number, rawBody: string): string {
   try {
     const parsed = JSON.parse(rawBody);
-    const msg = parsed?.error?.message;
+    // A Interactions API às vezes embrulha o erro num array: [{ "error": {...} }].
+    const errorObj = Array.isArray(parsed) ? parsed[0]?.error : parsed?.error;
+    const msg = errorObj?.message;
     if (typeof msg === "string") {
       if (msg.includes("high demand") || msg.includes("spikes in demand")) {
         return "O modelo Gemini está com alta demanda temporária nos servidores do Google. Tente novamente em instantes.";
@@ -70,6 +78,7 @@ export function parseErrorMessage(status: number, rawBody: string): string {
 export async function callGeminiInteraction(
   apiKey: string,
   input: InteractionInputBlock[],
+  options: { tools?: InteractionTool[] } = {},
 ): Promise<GeminiInteractionResult> {
   let lastError: Error | null = null;
 
@@ -82,22 +91,31 @@ export async function callGeminiInteraction(
           "x-goog-api-key": apiKey,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ model, input }),
+        body: JSON.stringify({
+          model,
+          input,
+          ...(options.tools ? { tools: options.tools } : {}),
+        }),
       });
 
       if (!response.ok) {
         const body = await response.text().catch(() => "");
         const errorMsg = parseErrorMessage(response.status, body);
 
-        // Erro fatal de credencial: chave explicitamente inválida falha imediatamente
+        // Erro fatal de credencial: chave explicitamente inválida falha imediatamente.
+        // A Gemini API responde 400 (não 401/403) pra chave inválida — confirmado em
+        // produção: {"error":{"code":400,"status":"INVALID_ARGUMENT",
+        // "details":[{"reason":"API_KEY_INVALID", ...}]}}. Checa só o corpo (strings
+        // específicas o bastante) pra não depender de um status que a API não usa.
         const isAuthInvalidKey =
-          (response.status === 401 || response.status === 403) &&
-          (body.includes("API_KEY_INVALID") ||
-            body.includes("API key not valid") ||
-            body.toLowerCase().includes("invalid api key"));
+          body.includes("API_KEY_INVALID") ||
+          body.includes("API key not valid") ||
+          body.toLowerCase().includes("invalid api key");
 
         if (isAuthInvalidKey) {
-          throw new GeminiCallError(errorMsg);
+          throw new GeminiInvalidKeyError(
+            "Chave da Gemini API inválida. Troque a chave em Diário → Configurar transcrição (Gemini API).",
+          );
         }
 
         // Se houver mais modelos na lista, tenta o próximo
@@ -121,8 +139,8 @@ export async function callGeminiInteraction(
       return { text: text.trim(), modelUsed: model };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
-      // Se for erro de chave inválida, propaga de imediato
-      if (err instanceof GeminiCallError && err.message.toLowerCase().includes("invalid")) {
+      // Se for erro de chave inválida, propaga de imediato — nunca adianta trocar de modelo
+      if (err instanceof GeminiInvalidKeyError) {
         throw err;
       }
       // Se ainda temos modelos candidatos, continua a iteração
@@ -139,9 +157,13 @@ export async function callGeminiInteraction(
 }
 
 /**
- * Tolerante a formato: tenta o atalho `output_text` primeiro; senão,
- * percorre `steps[].content[]` catando todo bloco de texto (sem exigir um
- * `type` exato de step, já que a doc pública não expõe o schema completo).
+ * Tolerante a formato: tenta o atalho `output_text` primeiro; senão, prioriza
+ * os steps do tipo `model_output` (resposta final do modelo) — importante
+ * quando a ferramenta `google_search` está ativa, já que aí existem também
+ * steps `google_search_call`/`google_search_result` cujo conteúdo (HTML de
+ * sugestões de busca) poluiria a concatenação. Sem nenhum `model_output`,
+ * cai de volta para catar texto de todos os steps (schema público não
+ * garante o `type` em toda resposta antiga).
  */
 function extractOutputText(data: InteractionResponse): string | null {
   if (typeof data.output_text === "string" && data.output_text.length > 0) {
@@ -149,7 +171,9 @@ function extractOutputText(data: InteractionResponse): string | null {
   }
 
   if (Array.isArray(data.steps)) {
-    const pieces = data.steps
+    const modelOutputSteps = data.steps.filter((step) => step.type === "model_output");
+    const relevantSteps = modelOutputSteps.length > 0 ? modelOutputSteps : data.steps;
+    const pieces = relevantSteps
       .flatMap((step) => step.content ?? [])
       .filter((block) => typeof block.text === "string")
       .map((block) => block.text as string);

@@ -64,6 +64,47 @@ imutáveis; mudanças exigem decisão explícita do dono do projeto registrada n
   (nunca vira evento) que o usuário revisa e marca item a item; só as sugestões
   aceitas viram `todo_created` de verdade. Mesma chave da Gemini API já cifrada
   no vault (evento `settings_updated`), nenhum schema novo de armazenamento.
+- **Exceção de zero-knowledge ampliada — Busca de menor preço via Compras
+  (decisão do Thiago, 2026-09-28)**: `lib/insights/gemini-price-search.ts`,
+  página `/compras`. Envia o nome (e observação opcional) de um item de
+  compra à Gemini API com a ferramenta `google_search` habilitada (grounding
+  real com busca do Google — sem isso o modelo só alucinaria preços de
+  memória). Trigger é opt-in por item: o usuário marca "Varrer" no item (ou
+  usa o botão de busca individual) — nunca varre a lista inteira sem marcação
+  explícita, já que cada busca é uma chamada real e paga à Gemini API. O
+  resultado (lojas + preço + link) é persistido como evento append-only
+  (`purchase_price_search_updated`), reduzido sempre pro mais recente por
+  item (`lib/events/purchase-store.ts`). Mesma chave da Gemini API já cifrada
+  no vault.
+  - **Segunda fonte: Buscapé (decisão do Thiago, 2026-09-28)** —
+    `lib/prices/buscape.ts`, sem chave de API. Envia só o nome/observação
+    do item a `buscape.com.br`. As duas fontes rodam juntas
+    (`lib/prices/search.ts`); se a Gemini não tiver chave ou ela for
+    inválida, a busca segue só com o Buscapé e o aviso aparece no final
+    com link pro Diário — a automação nunca para por falta de chave.
+    O Buscapé não libera CORS: no Android o app usa HTTP nativo
+    (`CapacitorHttp`, `lib/prices/buscape-in-app.ts`); no PWA de PC usa o
+    servidor local de preços (exceção abaixo).
+- **Exceção de backend — servidor local de preços, só pra Compras (decisão
+  do Thiago, 2026-09-28)**: única exceção à regra "sem backend próprio".
+  `scripts/servidor-precos.ts` (`npm run servidor-precos`, ou
+  `npm run dev:compras` junto do Next) existe só pra contornar o CORS do
+  Buscapé no PWA de PC. Limites que mantêm a exceção pequena:
+  - roda **só na máquina do Thiago**, escuta só em `127.0.0.1` (nunca na
+    rede, nunca hospedado), não guarda nada;
+  - só aceita como origem o próprio app local (`localhost:3000`) — outra
+    origem recebe 403 antes de qualquer busca;
+  - uma rota só, `GET /buscape?q=`, que faz busca + ranking e devolve os
+    resultados — **não** é proxy genérico de URL;
+  - recebe só o nome/observação do item; nenhum dado do cofre passa por ele.
+  Se não estiver rodando, a busca no PC segue só com a Gemini e a linha do
+  item diz como subir o servidor. Qualquer outro uso de backend continua
+  proibido.
+  - **CLI**: `npm run buscar-preco -- "produto"` (`scripts/buscar-preco.ts`,
+    Node puro com type stripping, zero dependência nova, fora do build) usa
+    as mesmas fontes. Chave da Gemini lida de `GEMINI_API_KEY` em
+    `.env.local` na raiz (ignorado pelo git) — arquivo em texto plano, não
+    deve entrar em backup/sync em nuvem sem cifrar.
 
 ## Desbloqueio por biometria (Android, opcional — decisão do Thiago, 2026-09-24)
 

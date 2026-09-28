@@ -46,6 +46,30 @@ describe("callGeminiInteraction", () => {
     );
   });
 
+  it("falha rápido (sem testar os outros modelos) quando a chave é inválida — a Gemini API real responde 400, não 401/403", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: () =>
+        Promise.resolve(
+          JSON.stringify({
+            error: {
+              code: 400,
+              message: "API key not valid. Please pass a valid API key.",
+              status: "INVALID_ARGUMENT",
+              details: [{ reason: "API_KEY_INVALID", domain: "googleapis.com" }],
+            },
+          }),
+        ),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(callGeminiInteraction("chave-invalida", [{ type: "text", text: "oi" }])).rejects.toThrow(
+      /Chave da Gemini API inválida/,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("lança GeminiCallError quando não consegue extrair texto de nenhum formato conhecido", async () => {
     mockFetchOnce({ status: "completed", steps: [] });
     await expect(callGeminiInteraction("key", [{ type: "text", text: "oi" }])).rejects.toThrow(
@@ -142,6 +166,11 @@ describe("parseErrorMessage", () => {
       error: { message: "gemini-3.8-flash is currently experiencing high demand, spikes in demand" },
     });
     expect(parseErrorMessage(500, raw)).toContain("alta demanda temporária");
+  });
+
+  it("extrai a mensagem quando o corpo do erro vem embrulhado num array", () => {
+    const raw = JSON.stringify([{ error: { code: 400, message: "API key not valid." } }]);
+    expect(parseErrorMessage(400, raw)).toBe("API key not valid.");
   });
 
   it("mantém a mensagem original se for outro erro da API", () => {

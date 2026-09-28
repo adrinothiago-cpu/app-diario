@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "buscar-preco": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/buscar-preco.ts",
+    "servidor-precos": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/servidor-precos.ts",
+    "dev:compras": "npm run servidor-precos & next dev"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",
