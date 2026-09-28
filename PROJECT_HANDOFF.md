@@ -6,6 +6,55 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
 
 ---
 
+## Sessão 2026-09-28 (parte 3) — Publicação da sincronização + achado de versão [Autor: Claude]
+
+### O que foi feito
+
+- Commit + push da sincronização (`0dd14e0`).
+- **Achado**: o S25 Ultra do Thiago já tinha `versionCode 20` / `1.14`
+  instalado (build sem a sincronização — provavelmente da Antigravity/Gemini,
+  feito antes desta sessão). O release `v20` que publiquei tinha o mesmo
+  número, então o auto-update comparou 20 > 20 e nunca ofereceu a
+  atualização ("não pediu para atualizar" foi o sintoma). Confirmado
+  comparando o `classes.dex` dos dois APKs: o instalado não tinha
+  `GoogleDriveAuthPlugin`/`AuthorizationClient`, o novo tinha.
+- **Correção**: `versionCode 21` / `versionName "1.15"` (`af19ee2`). Emparelhado
+  o celular via ADB sem fio (`adb pair`/`adb connect`, guiado pelo Thiago lendo
+  a tela de Depuração sem fio) e instalado direto (`adb install -r`) — mais
+  rápido que esperar o banner. Release `v21` publicado também, pro
+  auto-update funcionar dali pra frente em qualquer outro aparelho.
+
+### Estado de verificação
+
+- **Confirmado no celular real**: `versionCode=21`, `versionName=1.15`
+  instalados (`adb shell dumpsys package com.thiago.diario`).
+- A sincronização em si **ainda não foi exercitada de ponta a ponta** —
+  falta a pendência abaixo.
+
+### Pendência principal (bloqueia testar a sincronização)
+
+Sem isso, o botão "Conectar ao Google" falha com um erro claro, mas não
+sincroniza nada:
+
+1. Criar projeto no [Google Cloud Console](https://console.cloud.google.com/),
+   ativar a **Google Drive API**.
+2. Tela de consentimento OAuth: tipo **Externo**, modo **Teste**, com o
+   e-mail do Thiago como testador.
+3. Credencial **"Aplicativo da Web"**: origem `http://localhost:3000`,
+   redirect `http://localhost:3000/oauth-callback.html`. Colocar o Client ID
+   (não é segredo) em `NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` no `.env.local`.
+4. Credencial **"Android"**: pacote `com.thiago.diario`, SHA-1
+   `5B:D4:32:19:86:2F:81:47:EC:84:CF:5A:A7:D0:0C:B9:61:A4:FC:3B` (do
+   `~/.android/debug.keystore` desta máquina).
+5. Depois de criar: reinstalar/reiniciar o app nos dois aparelhos, destravar
+   o cofre, clicar em sincronizar no celular primeiro (ele tem os dados
+   reais) e só depois no PC — o PC vai pedir a senha do cofre do celular
+   (fluxo de "adotar cofre" em `lib/sync/sync.ts`).
+6. O APK é assinado pelo debug keystore desta máquina — se ele mudar, o
+   Android recusa atualizar, e desinstalar apagaria os dados locais.
+
+---
+
 ## Sessão 2026-09-28 (parte 2) — Sincronização com Google Drive [Autor: Claude]
 
 ### Achado crítico
