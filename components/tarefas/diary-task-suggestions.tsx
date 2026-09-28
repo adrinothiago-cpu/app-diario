@@ -25,7 +25,7 @@ export interface DiaryTaskSuggestionsProps {
   onAccept: (texto: string, prioridade: TodoPriority, vencimento: string | null) => Promise<void>;
 }
 
-type Status = "idle" | "loading" | "done" | "error";
+type Status = "idle" | "loading" | "done" | "error" | "added";
 
 export function DiaryTaskSuggestions({
   geminiApiKey,
@@ -38,12 +38,14 @@ export function DiaryTaskSuggestions({
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<TaskSuggestion[]>([]);
   const [checked, setChecked] = useState<Set<number>>(new Set());
+  const [addedSummary, setAddedSummary] = useState<{ total: number; semData: number } | null>(null);
 
   function openModal() {
     setOpen(true);
     setStatus("idle");
     setError(null);
     setSuggestions([]);
+    setAddedSummary(null);
   }
 
   function closeModal() {
@@ -85,12 +87,17 @@ export function DiaryTaskSuggestions({
   // snapshot anterior, sem as tarefas recém-criadas (mesmo já persistidas no
   // banco). Aguardar uma de cada vez elimina a corrida.
   async function handleAddSelected() {
+    let total = 0;
+    let semData = 0;
     for (const [i, s] of suggestions.entries()) {
       if (checked.has(i)) {
         await onAccept(s.texto, s.prioridade, s.vencimento);
+        total += 1;
+        if (!s.vencimento) semData += 1;
       }
     }
-    closeModal();
+    setAddedSummary({ total, semData });
+    setStatus("added");
   }
 
   return (
@@ -197,6 +204,29 @@ export function DiaryTaskSuggestions({
                     Adicionar selecionadas ({checked.size})
                   </button>
                 </div>
+              </>
+            )}
+
+            {status === "added" && addedSummary && (
+              <>
+                <p className="text-sm text-foreground">
+                  {addedSummary.total === 1 ? "1 tarefa adicionada" : `${addedSummary.total} tarefas adicionadas`}.
+                </p>
+                {addedSummary.semData > 0 && (
+                  <p className="text-sm text-muted">
+                    {addedSummary.semData === 1
+                      ? "Ela não tinha data de vencimento, então foi para a seção “Sem data” da Caixa de Entrada"
+                      : `${addedSummary.semData} delas não tinham data de vencimento, então foram para a seção “Sem data” da Caixa de Entrada`}{" "}
+                    — não vão aparecer em “Hoje”/“Amanhã” até você definir uma data.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="w-fit rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-background"
+                >
+                  Fechar
+                </button>
               </>
             )}
           </div>
