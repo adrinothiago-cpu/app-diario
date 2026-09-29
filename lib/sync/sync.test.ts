@@ -38,13 +38,16 @@ function fakeDrive(initial: Record<string, ArrayBuffer | string> = {}) {
 
 function fakeStore(events: StoredEvent[] = []) {
   const map = new Map(events.map((e) => [e.id, e]));
+  const quarantine: StoredEvent[] = [];
   let salt: Uint8Array | null = null;
   const store: LocalVaultStore = {
     listEvents: async () => [...map.values()],
     putEvent: async (e) => void map.set(e.id, e),
     setSalt: async (s) => void (salt = s),
+    clearEvents: async () => map.clear(),
+    quarantineEvents: async (evs) => void quarantine.push(...evs),
   };
-  return { store, map, salt: () => salt };
+  return { store, map, quarantine, salt: () => salt };
 }
 
 async function makeEvent(key: CryptoKey, id: string, data: unknown): Promise<StoredEvent> {
@@ -90,7 +93,7 @@ describe("syncWithDrive", () => {
     expect(await decryptEvent(key, local.map.get("evt_5_remoto")!.blob)).toEqual({ de: "celular" });
   });
 
-  it("cofre diferente: pede a senha do celular, recifra o que já existia aqui e adota o salt", async () => {
+  it("cofre diferente: pede a senha do celular, ARQUIVA (não apaga) o que já existia aqui e adota o salt", async () => {
     const chaveCelular = await fakeDerive("senha-celular", SALT_CELULAR);
     const chavePc = await fakeDerive("123", SALT_PC);
     const drive = fakeDrive({
@@ -110,11 +113,15 @@ describe("syncWithDrive", () => {
 
     expect(r.novaChave).not.toBeNull();
     expect(local.salt()).toEqual(SALT_CELULAR);
-    expect(r).toMatchObject({ enviados: 1, recebidos: 1 });
-    // O evento que já estava no PC agora abre com a chave do celular — e o enviado ao Drive também.
-    expect(await decryptEvent(chaveCelular, local.map.get("evt_2_pc")!.blob)).toEqual({ de: "pc" });
-    const enviado = [...drive.files.values()].find((f) => f.name === "evt_2_pc.enc")!;
-    expect(await decryptEvent(chaveCelular, enviado.body)).toEqual({ de: "pc" });
+    expect(r).toMatchObject({ enviados: 0, recebidos: 1, arquivados: 1 });
+    // Saiu do log ativo — nunca mesclado nem enviado ao Drive.
+    expect(local.map.has("evt_2_pc")).toBe(false);
+    expect([...drive.files.values()].some((f) => f.name === "evt_2_pc.enc")).toBe(false);
+    // Mas continua no aparelho, em quarentena, intacto (mesmo blob, decifra com a chave ANTIGA sem reescrever nada).
+    expect(local.quarantine.map((e) => e.id)).toEqual(["evt_2_pc"]);
+    expect(await decryptEvent(chavePc, local.quarantine[0].blob)).toEqual({ de: "pc" });
+    // Só o evento do celular ficou no log ativo, decifrável com a chave do celular.
+    expect(await decryptEvent(chaveCelular, local.map.get("evt_1_cel")!.blob)).toEqual({ de: "celular" });
   });
 
   it("cofre diferente com senha errada: falha sem tocar em nada local", async () => {

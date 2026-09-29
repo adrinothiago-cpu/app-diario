@@ -10,13 +10,20 @@
  * Cofre: o salt do PBKDF2 é gerado por aparelho, então o mesmo cofre em
  * dois aparelhos precisa do mesmo salt. O primeiro aparelho a sincronizar
  * publica o seu em `vault.json` (salt não é segredo). Um aparelho com salt
- * diferente "adota" o do Drive: pede a senha daquele cofre, confere
- * decifrando um evento remoto, recifra os próprios eventos com a nova
- * chave e troca o salt local — assim nada que já estava neste aparelho se
- * perde. Evento baixado que não decifra com a chave ativa é descartado
- * (um blob ruim derrubaria o desbloqueio inteiro, que decifra tudo).
+ * diferente é, por definição, **outra sessão/identidade** — nunca mescla:
+ * pede a senha do cofre que já está no Drive, confere decifrando um evento
+ * remoto, e então **arquiva** (não apaga) os eventos locais em quarentena —
+ * saem da lista ativa e nunca são enviados ao Drive, mas continuam no
+ * aparelho, cifrados com a chave antiga, sem reescrever nada. Decisão
+ * deliberada (2026-09-29, achados do Thiago): misturar dado de uma sessão
+ * com senha diferente no cofre de verdade é uma brecha, não uma
+ * conveniência — mas apagar de vez também é arriscado (e se for dado real
+ * que só ainda não foi identificado?), então o meio-termo é guardar cifrado
+ * à parte, recuperável depois sem precisar reescrever. Evento baixado que
+ * não decifra com a chave ativa também é descartado (um blob ruim
+ * derrubaria o desbloqueio inteiro, que decifra tudo).
  */
-import { decryptEvent, encryptEvent } from "../crypto/cipher.ts";
+import { decryptEvent } from "../crypto/cipher.ts";
 import type { StoredEvent } from "../events/types.ts";
 import type { DriveApi } from "./drive.ts";
 
@@ -28,6 +35,10 @@ export interface LocalVaultStore {
   listEvents(): Promise<StoredEvent[]>;
   putEvent(event: StoredEvent): Promise<void>;
   setSalt(salt: Uint8Array): Promise<void>;
+  /** Apaga o log ativo — só chamado depois de `quarantineEvents`, nunca sozinho. */
+  clearEvents(): Promise<void>;
+  /** Guarda uma cópia dos eventos (cifrados, sem decifrar nem tocar) fora do log ativo — recuperável depois, nunca lida nem enviada ao Drive automaticamente. */
+  quarantineEvents(events: StoredEvent[]): Promise<void>;
 }
 
 export interface SyncParams {
@@ -47,6 +58,8 @@ export interface SyncResult {
   invalidos: number;
   /** Chave nova quando este aparelho adotou o cofre do Drive — quem chama troca a da sessão. */
   novaChave: CryptoKey | null;
+  /** Quantos eventos locais foram arquivados (guardados cifrados, fora da lista) por serem de uma sessão de senha diferente. */
+  arquivados: number;
 }
 
 export class SyncCancelledError extends Error {}
@@ -100,6 +113,7 @@ export async function syncWithDrive(params: SyncParams): Promise<SyncResult> {
 
   let activeKey = localKey;
   let novaChave: CryptoKey | null = null;
+  let arquivados = 0;
   const vaultFile = files.find((f) => f.name === VAULT_FILE);
 
   if (!vaultFile) {
@@ -123,15 +137,16 @@ export async function syncWithDrive(params: SyncParams): Promise<SyncResult> {
         }
       }
 
-      // Só depois da senha conferida: recifra tudo que já existe aqui com a
-      // chave do cofre do Drive e adota o salt dele.
-      const locais = await store.listEvents();
-      const recifrados: StoredEvent[] = [];
-      for (const ev of locais) {
-        const plain = await decryptEvent<unknown>(localKey, ev.blob);
-        recifrados.push({ ...ev, blob: await encryptEvent(remoteKey, plain) });
+      // Senha confere, mas é de outro salt: os eventos daqui são de uma
+      // sessão diferente (não deste cofre) — nunca mescla. Arquiva em
+      // quarentena (cifrados, como estão) antes de limpar o log ativo, pra
+      // não perder nada mesmo que um dia precise recuperar.
+      const locaisAntigos = await store.listEvents();
+      if (locaisAntigos.length > 0) {
+        await store.quarantineEvents(locaisAntigos);
+        await store.clearEvents();
       }
-      for (const ev of recifrados) await store.putEvent(ev);
+      arquivados = locaisAntigos.length;
       await store.setSalt(remoteSalt);
       activeKey = remoteKey;
       novaChave = remoteKey;
@@ -159,5 +174,5 @@ export async function syncWithDrive(params: SyncParams): Promise<SyncResult> {
     recebidos++;
   });
 
-  return { enviados: paraEnviar.length, recebidos, invalidos, novaChave };
+  return { enviados: paraEnviar.length, recebidos, invalidos, novaChave, arquivados };
 }

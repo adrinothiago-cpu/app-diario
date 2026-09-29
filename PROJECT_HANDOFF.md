@@ -6,6 +6,55 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
 
 ---
 
+## Sessão 2026-09-29 — Credenciais do Google + teste real da sincronização [Autor: Claude]
+
+### O que foi feito
+
+- **Guiei o Thiago pelo Google Cloud Console** (ele mesmo criou tudo, exigia
+  login na conta dele): projeto, ativação da Drive API, tela de
+  consentimento (Externo, modo Teste, e-mail dele como testador), cliente
+  OAuth Web (`NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` em `.env.local`) e cliente
+  OAuth Android (pacote + SHA-1 do debug keystore).
+- **Testei de ponta a ponta com o aparelho real** (ADB por Wi-Fi e depois
+  USB, já que a conexão sem fio caiu no meio): sincronização funcionando no
+  celular e no PC, dados do celular puxados pro PC com sucesso.
+- **Achado do Thiago, corrigido na hora**: ao adotar o cofre do celular, o
+  código original recifrava e mesclava os eventos que já existiam no PC
+  (dados de teste que eu tinha criado numa sessão anterior, sob a senha de
+  dev "123") — isso fez 2 itens de Compras de teste ("Protetor Solar Anasol
+  FPS 90" e "parachoque dianteiro hb20 2016 premium") virarem parte do
+  cofre de verdade. O Thiago apontou, corretamente, que isso é uma brecha:
+  senha diferente = sessão diferente, o código não devia tentar "salvar"
+  esse dado misturando com o cofre real. Pediu pra descartar; refinei pra
+  **arquivar** em vez de apagar (`lib/db/indexeddb.ts` store `quarantine`,
+  `lib/sync/sync.ts`) — sai da lista/nunca vai pro Drive, mas fica cifrado
+  no aparelho, recuperável depois sem reescrever. Ver decisão detalhada em
+  `ARCHITECTURE.md`.
+- IndexedDB `DB_VERSION` 1 → 2 (nova store `quarantine`) — upgrade
+  automático e seguro, não mexe nas stores existentes.
+
+### Estado de verificação
+
+- 196 testes (11 de sync, incluindo o novo comportamento de arquivamento em
+  quarentena), typecheck e lint zerados.
+- **Sincronização real testada nos dois aparelhos** (celular e PC) — essa
+  parte já não é mais teórica, funcionou de verdade com a conta do Thiago.
+- O comportamento de arquivamento em quarentena em si (novo, pós-achado)
+  **só tem cobertura de teste automatizado** — não foi exercitado de novo
+  contra o Drive real depois da mudança (exigiria forçar de propósito um
+  novo cenário de "senha diferente", o que não faz sentido repetir agora
+  que os dois aparelhos já estão no mesmo cofre).
+
+### Pendências
+
+1. Gerar e instalar uma nova versão do APK com o fix de quarentena (a
+   sincronização testada foi antes dessa correção).
+2. Os 2 itens de Compras de teste que entraram no cofre real continuam lá
+   (a correção vale pra próximas vezes; não desfaz o que já foi mesclado).
+   O Thiago decide se quer apagá-los pela própria tela de Compras.
+
+---
+
 ## Sessão 2026-09-28 (parte 3) — Publicação da sincronização + achado de versão [Autor: Claude]
 
 ### O que foi feito

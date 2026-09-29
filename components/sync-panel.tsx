@@ -29,7 +29,10 @@ export function SyncPanel() {
           {status === "ok" && last && (
             <p className="text-sm text-foreground">
               Sincronizado às {hora.format(last.at)} — {last.enviados} enviado(s), {last.recebidos} recebido(s)
-              {last.invalidos > 0 && `, ${last.invalidos} ignorado(s) por não abrirem com esta senha`}.
+              {last.invalidos > 0 && `, ${last.invalidos} ignorado(s) por não abrirem com esta senha`}
+              {last.arquivados > 0 &&
+                `. ${last.arquivados} evento(s) que só existiam aqui (senha diferente) saíram da lista, mas continuam guardados cifrados no aparelho`}
+              .
             </p>
           )}
           {status === "precisa_login" && (

@@ -27,7 +27,16 @@ imutáveis; mudanças exigem decisão explícita do dono do projeto registrada n
     IndexedDB); sync = união por id (log append-only, sem conflito).
   - `vault.json` guarda o salt do PBKDF2 (não é segredo). Aparelho com salt
     diferente adota o do Drive: pede a senha daquele cofre, confere
-    decifrando um evento remoto, recifra os eventos locais e troca o salt.
+    decifrando um evento remoto, e então **arquiva em quarentena** (store
+    `quarantine` no IndexedDB, `lib/db/indexeddb.ts`) os eventos locais —
+    saem do log ativo e nunca são enviados ao Drive, mas continuam no
+    aparelho, cifrados como estavam (sem recifrar/reescrever). **Revisão
+    2026-09-29 (achado do Thiago)**: a versão original recifrava e mesclava
+    o que já existia localmente no cofre adotado — ele apontou que isso é
+    uma brecha (dado de uma sessão/senha diferente virando parte do cofre
+    de verdade sem intenção clara) e que apagar de vez também era
+    arriscado; o meio-termo ficou "sai da lista, mas nada é destruído",
+    recuperável depois pela senha antiga sem precisar reescrever.
   - Escopo OAuth só `drive.appdata`. Token só em memória. Login: PC via
     janela OAuth (`public/oauth-callback.html` devolve por
     `BroadcastChannel`); Android via `GoogleDriveAuthPlugin.java`

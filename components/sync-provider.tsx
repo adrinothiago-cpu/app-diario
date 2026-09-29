@@ -25,7 +25,7 @@ import {
 import { useVault } from "@/components/vault-provider";
 import { deriveEventKey } from "@/lib/crypto/keys";
 import { getOrCreateSalt, setSalt } from "@/lib/db/auth-store";
-import { getAllRecords, putRecord } from "@/lib/db/indexeddb";
+import { clearStore, getAllRecords, putRecord } from "@/lib/db/indexeddb";
 import { EVENT_APPENDED } from "@/lib/events/event-store";
 import type { StoredEvent } from "@/lib/events/types";
 import { createDriveApi, DriveAuthError } from "@/lib/sync/drive";
@@ -103,15 +103,26 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       setError(null);
       try {
         const token = await getDriveAccessToken({ interactive });
+        const localSalt = await getOrCreateSalt();
+        const localSaltB64 = btoa(String.fromCharCode(...localSalt));
         const result = await syncWithDrive({
           drive: createDriveApi(token),
           store: {
             listEvents: () => getAllRecords<StoredEvent>("events"),
             putEvent: (ev) => putRecord("events", ev),
             setSalt,
+            clearEvents: () => clearStore("events"),
+            // Guarda como veio, sem decifrar/recifrar — só marca de qual salt (senha) veio,
+            // pra saber depois qual senha decifra caso precise recuperar.
+            quarantineEvents: async (events) => {
+              const quarantinedAt = Date.now();
+              for (const ev of events) {
+                await putRecord("quarantine", { ...ev, quarantinedSalt: localSaltB64, quarantinedAt });
+              }
+            },
           },
           localKey,
-          localSalt: await getOrCreateSalt(),
+          localSalt,
           deriveKey: deriveEventKey,
           askRemotePassword: () => new Promise((resolve) => setPasswordPrompt(() => resolve)),
         });
@@ -229,8 +240,12 @@ function RemotePasswordDialog({
       <form onSubmit={handleSubmit} className="flex w-full max-w-sm flex-col gap-3 rounded-xl bg-surface p-4">
         <h2 className="text-base font-semibold">Dados do outro aparelho encontrados</h2>
         <p className="text-sm text-muted">
-          O Google já tem o cofre do seu outro aparelho (ex.: celular). Digite a senha daquele cofre para trazer os
-          dados para cá. O que já existe neste aparelho é mantido e passa a usar a mesma senha.
+          O Google já tem o cofre de outro aparelho (ex.: celular), com senha diferente da usada aqui. Digite a
+          senha daquele cofre para trazer os dados dele pra cá.
+        </p>
+        <p className="text-sm font-medium text-amber-400">
+          O que existe só aqui neste aparelho some da lista (os dois passam a mostrar os dados do outro aparelho),
+          mas fica guardado cifrado no aparelho — nada é apagado de verdade.
         </p>
         <input
           type="password"

@@ -5,11 +5,14 @@
  */
 
 const DB_NAME = "diario-app";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export const STORES = {
   events: "events",
   meta: "meta",
+  /** Eventos "arquivados" de uma sessão com senha diferente da do cofre atual — cifrados,
+   *  fora da leitura normal do app, guardados só pra eventual recuperação (ver `lib/sync/sync.ts`). */
+  quarantine: "quarantine",
 } as const;
 
 export type StoreName = (typeof STORES)[keyof typeof STORES];
@@ -27,6 +30,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORES.meta)) {
         db.createObjectStore(STORES.meta, { keyPath: "key" });
+      }
+      if (!db.objectStoreNames.contains(STORES.quarantine)) {
+        db.createObjectStore(STORES.quarantine, { keyPath: "id" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -64,4 +70,11 @@ export async function deleteRecord(store: StoreName, key: string): Promise<void>
   const db = await openDb();
   const tx = db.transaction(store, "readwrite");
   await promisifyRequest(tx.objectStore(store).delete(key));
+}
+
+/** Apaga todos os registros de uma store. Usado só depois de copiar os eventos pra `quarantine` (`lib/sync/sync.ts`) — nunca sozinho, sem antes preservar os dados. */
+export async function clearStore(store: StoreName): Promise<void> {
+  const db = await openDb();
+  const tx = db.transaction(store, "readwrite");
+  await promisifyRequest(tx.objectStore(store).clear());
 }
