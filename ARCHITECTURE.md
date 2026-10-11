@@ -86,6 +86,77 @@ imutáveis; mudanças exigem decisão explícita do dono do projeto registrada n
   (nunca vira evento) que o usuário revisa e marca item a item; só as sugestões
   aceitas viram `todo_created` de verdade. Mesma chave da Gemini API já cifrada
   no vault (evento `settings_updated`), nenhum schema novo de armazenamento.
+- **Exceção de zero-knowledge ampliada — Evolução por tópicos (decisão do
+  Thiago, 2026-09-29, revisada em 2026-09-29 pra virar conversa em vez de
+  formulário/botão)**: `lib/insights/gemini-evolucao.ts`, página `/evolucao`.
+  Para questões pessoais/profissionais que não são tarefas binárias (ex.:
+  avaliar uma relação profissional e decidir como agir), o usuário conversa
+  com a Gemini API num chat por tópico — a própria primeira mensagem já cria
+  o tópico (a IA propõe o título). Cada mensagem enviada dispara, em
+  sequência: (1) classificação — quais entradas do diário ainda não
+  vinculadas a nenhum tópico ativo pertencem a algum deles (ou a nenhum); (2)
+  o turno de chat propriamente dito, que recebe o resumo/critérios da última
+  vez, as entradas novas do diário relevantes a este tópico e o histórico da
+  conversa da sessão atual, e responde à pessoa enquanto atualiza a memória.
+  Na primeira conversa de um tópico a IA define de 3 a 6 "critérios binários"
+  concretos (perguntas objetivas sobre efeito real, nunca sobre sentimento
+  vago); nas conversas seguintes reavalia os MESMOS critérios em vez de
+  recriá-los — é isso que permite medir evolução real comparando o mesmo
+  critério ao longo do tempo, e as recomendações da IA se apoiam nos
+  critérios que já estão `true` (o que historicamente gerou resultado real).
+  Mesmas diretrizes de análise dos Insights de Humor: sem tabu, sem
+  moralismo, critério binário por efeito real, foco em decisão e evolução
+  (não validação emocional vaga). Estritamente manual como as demais
+  exceções (nada roda sozinho nem em segundo plano — cada mensagem é uma
+  ação explícita) e usa a mesma chave da Gemini API já cifrada no vault — sem
+  migração para tier pago por ora (decisão separada, fora de escopo).
+  Checkpoint incremental via `evolucao_entrada_classificada`: só entradas
+  ainda não classificadas desde a última vez são enviadas à API, o diário
+  nunca é reenviado inteiro. A conversa em si (as mensagens trocadas) NUNCA é
+  persistida — some ao trocar de tópico ou recarregar a página; o que fica
+  gravado pra sempre é só a memória atualizada a cada turno (evento
+  `evolucao_rodada_registrada`: resumo curto de 1-2 frases + critérios em
+  texto curto + booleano, nunca o texto das entradas nem da conversa) —
+  orçamento de armazenamento auto-imposto pelo Thiago (~5MB do log de
+  Evolução, confortável mesmo em uso plurianual intenso).
+- **Exceção de zero-knowledge ampliada — Treino (decisão do Thiago,
+  2026-09-30)**: `lib/insights/gemini-treino.ts`, página `/treino`. Duas
+  frentes separadas, mesma chave da Gemini API já cifrada no vault:
+  1. **Geração do plano** (aba "Planos"): dado um treino (A/B/C) e os
+     grupamentos fixos que ele cobre (A: peito/ombro/tríceps; B:
+     anterior/posterior; C: bíceps/antebraço/costas), a IA monta um banco
+     com pelo menos 2 exercícios por grupamento (séries fixas). **O foco não
+     muda séries, muda a escolha** (decisão do Thiago, 2026-09-30): cada
+     sessão de até 40 min tem 2 exercícios do grupamento em foco + 2 dos
+     demais (rodízio entre eles) + um 5º só se der tempo
+     (`selecionarExerciciosDaSessao`). Ação manual por treino (botão "Gerar/Regenerar com IA");
+     o plano também pode ser editado à mão sem IA nenhuma. Persistido como
+     evento append-only `treino_plano_atualizado`, reduzido sempre pro mais
+     recente por treino (padrão "singleton por sobrescrita" de
+     `mood_insights_updated`).
+  2. **Interação durante a sessão** (aba "Sessão"): rodízio de foco — cada
+     sessão concluída de um treino avança o foco pro próximo grupamento da
+     lista, ciclicamente (`computeProximoFoco`,
+     `lib/events/treino-store.ts`). As séries executadas são dado real do
+     usuário, sempre persistidas (reaproveita o evento `workout_set` já
+     existente no schema, com os campos novos opcionais `Grupamento` e
+     `SessaoId`). A CONVERSA em si (chat livre + parecer final) nunca é
+     persistida por padrão — só quando o usuário pede explicitamente o
+     "parecer final da IA" antes de finalizar, esse texto entra no evento
+     `treino_sessao_finalizada` (`feedbackIa`), mesmo trade-off de
+     armazenamento da Evolução. Cada mensagem do chat e cada pedido de
+     parecer é um clique explícito — nada roda sozinho durante a sessão.
+     Esteira pós-treino entra como `workout_set` com `Exercicio: "Esteira"`
+     e o campo opcional `Duracao_min`.
+  3. **Dúvidas gerais**: caixa de chat fixa à direita da página (fora de
+     sessão ativa), com contexto dos planos e das últimas 5 sessões
+     concluídas. Conversa não persistida.
+  4. **Registro por voz** (`interpretarFalaDoExercicio`): botão 🎙️ ao
+     lado de cada exercício da sessão — toque grava, segundo toque para e
+     manda **o áudio** daquele exercício à Gemini, que devolve séries,
+     repetições, carga, RPE e observação. Só preenche os campos (o que não
+     foi dito fica como estava); o `workout_set` só é gravado quando o
+     usuário confere e clica em "Registrar". O áudio nunca é persistido.
 - **Exceção de zero-knowledge ampliada — Busca de menor preço via Compras
   (decisão do Thiago, 2026-09-28)**: `lib/insights/gemini-price-search.ts`,
   página `/compras`. Envia o nome (e observação opcional) de um item de

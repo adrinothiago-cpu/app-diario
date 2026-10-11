@@ -14,10 +14,13 @@ export default function Home() {
       </p>
       <div className="grid w-full max-w-md gap-3">
         <SyncPanel />
-        <section className="rounded-xl border border-border bg-surface p-4">
+        <Link
+          href="/treino"
+          className="rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent"
+        >
           <h2 className="font-medium">Treino</h2>
-          <p className="text-sm text-muted">Fichas e modo execução — em breve.</p>
-        </section>
+          <p className="text-sm text-muted">Rodízio ABC e acompanhamento com IA.</p>
+        </Link>
         <Link
           href="/diario"
           className="rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent"
@@ -31,6 +34,27 @@ export default function Home() {
         >
           <h2 className="font-medium">Métricas</h2>
           <p className="text-sm text-muted">Insights e evolução do humor com Gemini.</p>
+        </Link>
+        <Link
+          href="/evolucao"
+          className="rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent"
+        >
+          <h2 className="font-medium">Evolução</h2>
+          <p className="text-sm text-muted">Acompanhamento e reflexões com IA.</p>
+        </Link>
+        <Link
+          href="/tarefas"
+          className="rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent"
+        >
+          <h2 className="font-medium">Tarefas</h2>
+          <p className="text-sm text-muted">Tarefas com sugestões e estimativas.</p>
+        </Link>
+        <Link
+          href="/compras"
+          className="rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent"
+        >
+          <h2 className="font-medium">Compras</h2>
+          <p className="text-sm text-muted">Listas de compras e pesquisa de preços.</p>
         </Link>
       </div>
       <footer className="mt-2 text-center text-xs text-muted/50">

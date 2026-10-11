@@ -15,11 +15,11 @@ import { GeminiApiKeySettings } from "@/components/gemini-api-key-settings";
 import { VaultGate } from "@/components/vault-gate";
 import { useVault } from "@/components/vault-provider";
 import { arrayBufferToBase64, base64ToBlob } from "@/lib/audio/encoding";
+import { type AudioRecorder, formatDuration, useAudioRecorder } from "@/lib/audio/use-audio-recorder";
 import { appendEvent, listDecryptedEvents } from "@/lib/events/event-store";
 import { reduceDiaryEntries } from "@/lib/events/diary-store";
 import { reduceSettings } from "@/lib/events/settings-store";
 import type { DiaryEntryEvent, DiaryEntryItem, SettingsUpdatedEvent } from "@/lib/events/types";
-import { checkMicrophonePermission, ensureMicrophonePermission } from "@/lib/native/microphone";
 import { transcribeAudio } from "@/lib/transcription/gemini";
 
 const HUMOR_EMOJI: Record<1 | 2 | 3 | 4 | 5, string> = {
@@ -29,17 +29,6 @@ const HUMOR_EMOJI: Record<1 | 2 | 3 | 4 | 5, string> = {
   4: "🙂",
   5: "😄",
 };
-
-/** Primeiro tipo suportado pelo `MediaRecorder` do WebView/navegador atual. */
-function pickSupportedMimeType(): string {
-  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
-  for (const candidate of candidates) {
-    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(candidate)) {
-      return candidate;
-    }
-  }
-  return "audio/webm";
-}
 
 export default function DiarioPage() {
   return (
@@ -148,6 +137,7 @@ function DiaryContent() {
         </div>
 
         <RecorderControls recorder={recorder} />
+        <HoldToRecordButton recorder={recorder} />
 
         <div className="flex justify-end">
           <button
@@ -199,7 +189,7 @@ function DiaryContent() {
   );
 }
 
-function RecorderControls({ recorder }: { recorder: ReturnType<typeof useAudioRecorder> }) {
+function RecorderControls({ recorder }: { recorder: AudioRecorder }) {
   if (recorder.hasPermission === false) {
     return (
       <div className="flex flex-col items-start gap-1">
@@ -225,19 +215,10 @@ function RecorderControls({ recorder }: { recorder: ReturnType<typeof useAudioRe
 
   if (recorder.recording) {
     return (
-      <div className="flex items-center gap-3">
-        <span className="flex items-center gap-2 text-sm text-red-400">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
-          Gravando… {formatDuration(recorder.recordedSeconds)}
-        </span>
-        <button
-          type="button"
-          onClick={recorder.stop}
-          className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium"
-        >
-          Parar
-        </button>
-      </div>
+      <span className="flex items-center gap-2 text-sm text-red-400">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
+        Gravando… {formatDuration(recorder.recordedSeconds)}
+      </span>
     );
   }
 
@@ -258,13 +239,139 @@ function RecorderControls({ recorder }: { recorder: ReturnType<typeof useAudioRe
   }
 
   return (
-    <button
-      type="button"
-      onClick={recorder.start}
-      className="flex w-fit items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium"
-    >
-      🎙️ Gravar áudio
-    </button>
+    <p className="text-xs text-muted">
+      🎙️ Segure o microfone no canto inferior direito para gravar — deslize para cima para travar.
+    </p>
+  );
+}
+
+const LOCK_THRESHOLD_PX = 80;
+/** Soltar antes disso conta como toque acidental — descarta, como no WhatsApp. */
+const MIN_HOLD_MS = 400;
+
+/**
+ * Botão flutuante estilo WhatsApp: segurar grava, soltar para; deslizar pra
+ * cima até o cadeado trava a gravação (dá pra soltar o dedo), e aí o mesmo
+ * botão vira "parar" e aparece a lixeira. Usa Pointer Events (toque e mouse)
+ * com `setPointerCapture`, e `getUserMedia` sai direto do `pointerdown` — o
+ * gesto conta como ativação do usuário (ver `lib/native/microphone.ts`).
+ * Parar não salva a entrada: o áudio vai pra prévia do formulário, junto com
+ * texto e humor, e só vira evento no "Salvar entrada".
+ */
+function HoldToRecordButton({ recorder }: { recorder: AudioRecorder }) {
+  const [locked, setLocked] = useState(false);
+  const [dragUp, setDragUp] = useState(0);
+  const [hint, setHint] = useState(false);
+  const holdingRef = useRef(false);
+  const startYRef = useRef(0);
+  const pressStartRef = useRef(0);
+
+  useEffect(() => {
+    if (!hint) return;
+    const t = setTimeout(() => setHint(false), 2000);
+    return () => clearTimeout(t);
+  }, [hint]);
+
+  if (recorder.hasPermission === false || recorder.recordedBlob) return null;
+
+  function finishHold() {
+    if (!holdingRef.current) return;
+    holdingRef.current = false;
+    setDragUp(0);
+    if (Date.now() - pressStartRef.current < MIN_HOLD_MS) {
+      recorder.cancel();
+      setHint(true);
+    } else {
+      recorder.stop();
+    }
+  }
+
+  function handlePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
+    // Travado: o próximo toque no botão é o "parar" (não usa onClick — o
+    // click do próprio gesto que travou dispararia o parar na hora).
+    if (locked) {
+      setLocked(false);
+      recorder.stop();
+      return;
+    }
+    if (recorder.recording) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    holdingRef.current = true;
+    startYRef.current = e.clientY;
+    pressStartRef.current = Date.now();
+    setHint(false);
+    void recorder.start();
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLButtonElement>) {
+    if (!holdingRef.current) return;
+    const up = Math.max(0, startYRef.current - e.clientY);
+    if (up >= LOCK_THRESHOLD_PX) {
+      holdingRef.current = false;
+      setDragUp(0);
+      setLocked(true);
+      return;
+    }
+    setDragUp(up);
+  }
+
+  const holding = recorder.recording && !locked;
+
+  return (
+    <div className="pointer-events-none fixed bottom-6 right-6 z-20 flex items-end gap-3">
+      {recorder.recording && (
+        <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-border bg-surface px-4 py-2 text-sm shadow-lg">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
+          <span className="tabular-nums text-foreground">{formatDuration(recorder.recordedSeconds)}</span>
+          {locked ? (
+            <button
+              type="button"
+              onClick={() => {
+                setLocked(false);
+                recorder.cancel();
+              }}
+              aria-label="Descartar gravação"
+              className="text-muted hover:text-red-400"
+            >
+              🗑️
+            </button>
+          ) : (
+            <span className="text-xs text-muted">↑ deslize para travar</span>
+          )}
+        </div>
+      )}
+      {hint && !recorder.recording && (
+        <div className="rounded-full border border-border bg-surface px-4 py-2 text-xs text-muted shadow-lg">
+          Segure para gravar
+        </div>
+      )}
+
+      <div className="relative flex flex-col items-center">
+        {holding && (
+          <div
+            className="absolute bottom-full mb-3 flex flex-col items-center gap-1 rounded-full border border-border bg-surface px-2 py-3 text-sm shadow-lg"
+            style={{ transform: `translateY(${-dragUp}px)` }}
+          >
+            <span>🔒</span>
+            <span className="text-xs text-muted">↑</span>
+          </div>
+        )}
+        <button
+          type="button"
+          aria-label={locked ? "Parar gravação" : "Segure para gravar áudio"}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={finishHold}
+          onPointerCancel={finishHold}
+          onContextMenu={(e) => e.preventDefault()}
+          className={`pointer-events-auto flex h-16 w-16 touch-none select-none items-center justify-center rounded-full text-2xl shadow-lg transition-transform ${
+            recorder.recording ? "scale-110 bg-red-500 text-white" : "bg-accent text-background"
+          }`}
+        >
+          {locked ? "■" : "🎙️"}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -337,115 +444,4 @@ function DiaryEntryCard({
       )}
     </article>
   );
-}
-
-function formatDuration(totalSeconds: number): string {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-
-/**
- * Encapsula `MediaRecorder` + cronômetro. Interrompe as tracks do microfone
- * assim que a gravação para (ou é descartada) — não deixa o indicador de
- * "microfone em uso" do sistema aceso à toa.
- */
-function useAudioRecorder() {
-  const [recording, setRecording] = useState(false);
-  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
-  const [recordedSeconds, setRecordedSeconds] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  // "unknown" enquanto a checagem inicial não termina — trata como "sem
-  // permissão ainda" para não piscar o botão de gravar antes de saber.
-  const [hasPermission, setHasPermission] = useState<boolean | "unknown">("unknown");
-
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<BlobPart[]>([]);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    checkMicrophonePermission().then(setHasPermission);
-  }, []);
-
-  // Só pede a permissão nativa — nunca chama getUserMedia aqui. `await`
-  // esperando um diálogo do sistema quebra a "user activation" do clique;
-  // por isso este passo fica isolado do clique que efetivamente grava (ver
-  // comentário em `lib/native/microphone.ts`).
-  async function requestPermission() {
-    setError(null);
-    const granted = await ensureMicrophonePermission();
-    setHasPermission(granted);
-    if (!granted) setError("permissão de microfone negada.");
-  }
-
-  const recordedUrl = useMemo(() => {
-    if (!recordedBlob) return null;
-    return URL.createObjectURL(recordedBlob);
-  }, [recordedBlob]);
-
-  useEffect(() => {
-    return () => {
-      if (recordedUrl) URL.revokeObjectURL(recordedUrl);
-    };
-  }, [recordedUrl]);
-
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      mediaRecorderRef.current?.stream.getTracks().forEach((track) => track.stop());
-    };
-  }, []);
-
-  async function start() {
-    setError(null);
-    try {
-      // getUserMedia precisa ser a primeira coisa chamada a partir do
-      // clique, sem nenhum `await` de permissão antes — ver comentário em
-      // `lib/native/microphone.ts`.
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = pickSupportedMimeType();
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
-      chunksRef.current = [];
-      setRecordedSeconds(0);
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-      mediaRecorder.onstop = () => {
-        setRecordedBlob(new Blob(chunksRef.current, { type: mimeType }));
-        stream.getTracks().forEach((track) => track.stop());
-        if (intervalRef.current) clearInterval(intervalRef.current);
-      };
-
-      mediaRecorder.start();
-      mediaRecorderRef.current = mediaRecorder;
-      setRecording(true);
-      intervalRef.current = setInterval(() => setRecordedSeconds((s) => s + 1), 1000);
-    } catch {
-      setError("permissão negada ou nenhum microfone disponível.");
-    }
-  }
-
-  function stop() {
-    mediaRecorderRef.current?.stop();
-    setRecording(false);
-  }
-
-  function discard() {
-    setRecordedBlob(null);
-    setRecordedSeconds(0);
-  }
-
-  return {
-    recording,
-    recordedBlob,
-    recordedUrl,
-    recordedSeconds,
-    error,
-    hasPermission,
-    requestPermission,
-    start,
-    stop,
-    discard,
-  };
 }

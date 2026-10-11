@@ -6,6 +6,198 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
 
 ---
 
+## Sessão 2026-10-11 — Treinador com Memória e correção de navegação móvel [Autor: Antigravity (Gemini)]
+
+### O que foi feito
+
+- **Correção da tela inicial (`/`)**: o cartão do módulo Treino estava como um `<section>` estático ("em breve") em vez de um `<Link href="/treino">`. Foi transformado em link ativo, e foram adicionados os links dos demais módulos (Evolução, Tarefas, Compras).
+- **Reformulação da seção Treino (`/treino`) em "Treinador com Memória"**:
+  - Em vez de abas engessadas onde a IA não preenchia nada, agora a tela principal é o **Treinador**: o usuário relata o que treinou (por voz 🎙️, texto ou foto 📷) ou pede o treino do dia.
+  - A Gemini interpreta o relato, extrai as séries executadas e grava automaticamente os eventos `workout_set` no cofre cifrado (com data, carga em kg, repetições, RPE e observações).
+  - O treinador mantém e atualiza uma memória contínua do aluno (`treino_memoria_atualizada`: resumo acumulado, marcos de carga, histórico de dores e rodízio ABC).
+  - Suporte a ordens para preencher plano (ex: "preencha o treino A"): gera automaticamente os exercícios e grava o plano oficial na aba **Planos ABC**.
+  - Otimizações de áudio e microfone: gravação comprimida a 32 kbps para resposta ultra rápida, e seleção forçada do microfone embutido do aparelho (ignorando Bluetooth conectado).
+  - Suporte a reconhecimento visual por foto: botão de câmera para tirar foto de aparelhos da academia; a IA identifica o nome da máquina, o exercício e os músculos trabalhados.
+  - Aba **Histórico & Cargas**: permite visualizar todas as séries gravadas agrupadas por exercício, mostrando a carga máxima e os registros recentes.
+  - Aba **Planos ABC**: visualização e geração de planos de referência A, B e C.
+- Arquivos alterados:
+  - `lib/events/types.ts`: `TreinoSerieIdentificada`, `TreinoMensagemRegistradaEvent`, `TreinoMemoriaAtualizadaEvent`.
+  - `lib/events/treino-store.ts`: `reduceTreinoMemoria`, `reduceTreinoMensagens`, `reduceTodosExerciciosRealizados` (+ testes).
+  - `lib/insights/gemini-treino.ts`: `buildTreinadorPrompt`, `parseTreinadorResponse`, `processarTurnoTreinador` com suporte multimodal (texto + áudio + foto) e geração de plano (+ testes).
+  - `lib/audio/use-audio-recorder.ts`: bitrate de 32 kbps e preferência de microfone embutido.
+  - `lib/gemini/client.ts`: suporte a blocos `image` no `InteractionInputBlock`.
+  - `app/treino/page.tsx`: interface móvel reativa unificada com câmera, áudio, chat e abas de histórico/planos.
+- Validação: 283 testes passando no Vitest, lint zerado, build estático do Next.js bem-sucedido, sincronizado com Capacitor, APK compilado via Gradle e instalado com sucesso no Samsung Galaxy S25 Ultra via ADB.
+
+---
+
+## Sessão 2026-09-30 — Nova seção Treino: rodízio ABC com IA gerando o plano e acompanhando a sessão [Autor: Claude]
+
+### O que foi feito
+
+- **Construída a seção Treino** (`/treino`), até então só um evento
+  `workout_set` de exemplo sem tela própria (usado só no botão de teste da
+  Auditoria). Pedido do Thiago: "duas áreas dentro, uma que cadastra os
+  treinos a realizar e outra de interação qual a ia vai acompanhar durante o
+  treino", com o rodízio ABC descrito por ele: Treino A (peito/ombro/
+  tríceps), B (anterior/posterior), C (bíceps/antebraço/costas) — sempre
+  treinando os três grupamentos de cada treino, revezando qual deles é o
+  foco (mais séries) a cada vez que aquele treino se repete.
+- **Aba "Planos"**: um cartão por treino (A/B/C) com botão "Gerar/Regenerar
+  com IA" (a Gemini monta os exercícios respeitando o teto de 40 min e o
+  rodízio) e edição manual direta (adicionar/editar/remover exercício,
+  ajustar séries base/foco e faixa de repetições) — nenhuma das duas
+  depende da outra.
+- **Aba "Sessão"**: escolhe o treino a iniciar (mostra o foco calculado pelo
+  rodízio antes mesmo de começar), registra as séries reais executadas
+  (vira evento `workout_set`, reaproveitando o schema que já existia) e tem
+  um chat lateral onde a IA acompanha ao vivo — sugere progressão de carga
+  comparando com o histórico de sessões anteriores do mesmo exercício. Um
+  botão separado pede o "parecer final da IA" antes de finalizar (só esse
+  texto persiste, no evento `treino_sessao_finalizada` — a conversa em si
+  some ao trocar de aba ou recarregar, mesmo trade-off já decidido na
+  Evolução).
+- Arquivos novos: `lib/events/treino-store.ts` (+ teste),
+  `lib/insights/gemini-treino.ts` (+ teste), `app/treino/page.tsx`.
+  Arquivos alterados: `lib/events/types.ts` (3 eventos novos —
+  `treino_plano_atualizado`, `treino_sessao_iniciada`,
+  `treino_sessao_finalizada` — e 2 campos novos opcionais em
+  `WorkoutSetEvent`: `Grupamento`, `SessaoId`), `components/top-tabs.tsx`
+  (nova aba "Treino"), `ARCHITECTURE.md` (nova exceção de zero-knowledge).
+
+### Estado de verificação
+
+- 272 testes passando, lint limpo, `next build`/TypeScript ok,
+  `/treino` prerenderizada como página estática (export continua íntegro).
+- **Não testado na tela**: subi o `npm run dev` e confirmei que `/treino`
+  responde 200, mas a extensão Claude in Chrome não estava conectada nesta
+  sessão, e a tela exige desbloquear o cofre com a senha real do Thiago —
+  que não devo digitar por ele. Ou seja: **só compilado/testado
+  automaticamente**, falta o Thiago abrir a tela, gerar um plano de
+  verdade e rodar uma sessão pra confirmar que o fluxo funciona na prática
+  (em especial o rodízio de foco e o layout da aba Sessão com o chat ao
+  lado, que foi onde a Evolução teve bug de layout real).
+
+### Ajustes pedidos pelo Thiago na mesma sessão
+
+- Aba Planos em 3 colunas (A | B | C) em vez de cartões empilhados.
+- Caixa "Tire dúvidas com a IA" fixa à direita, logo abaixo do "Trancar"
+  (some só durante uma sessão ativa, que já tem o próprio chat).
+- **Regra do foco corrigida**: o foco não é mais "mais séries" — são 2
+  exercícios do grupamento em foco + 2 dos demais + 5º opcional se der
+  tempo. O plano virou um banco com ≥2 exercícios por grupamento e séries
+  fixas (`series` substituiu `seriesBase`/`seriesFoco`; planos gravados na
+  versão anterior viram 3 séries — melhor regerar).
+- Esteira pós-treino registrável na sessão (minutos, RPE, observação).
+
+### Diário: botão de gravar estilo WhatsApp
+
+- `app/diario/page.tsx` (`HoldToRecordButton`): botão flutuante no canto
+  inferior direito — segurar grava, soltar para; deslizar 80px pra cima
+  trava (aí o botão vira ■ "parar" e aparece 🗑️ pra descartar). Toque
+  rápido (<400ms) descarta e mostra "Segure para gravar". Parar só manda o
+  áudio pra prévia do formulário — a entrada continua sendo salva no
+  "Salvar entrada" (junto com texto e humor), nada é enviado sozinho.
+- `useAudioRecorder` ganhou `cancel()` e tolera soltar o dedo antes do
+  microfone abrir (stop pendente aplicado quando a gravação começa).
+- **Só compilado** — não testado na tela; o gesto precisa ser conferido no
+  Android de verdade (toque + deslizar).
+
+### Treino: registro do exercício por voz
+
+- Botão 🎙️ ao lado de cada exercício da sessão (antes do "Registrar"):
+  toque grava, toque de novo para; a Gemini ouve e preenche séries,
+  repetições, carga, RPE e observação (`interpretarFalaDoExercicio` em
+  `lib/insights/gemini-treino.ts`). Não registra sozinho.
+- O gravador saiu do Diário para `lib/audio/use-audio-recorder.ts`
+  (compartilhado), com a opção `onRecorded`.
+- **Só compilado** — falta testar falando de verdade.
+
+### Pendências
+
+0. **Dias de esteira**: hoje a esteira é um bloco opcional em toda sessão.
+   Falta o Thiago dizer quais dias têm esteira (dia da semana? depois de
+   qual treino?) pra app sugerir/lembrar sozinho.
+1. Thiago precisa testar na tela: gerar plano de um treino, iniciar sessão,
+   registrar séries, conversar com a IA e finalizar — confirmar rodízio de
+   foco e layout.
+2. Rótulos dos grupamentos do Treino B ("Anterior"/"Posterior") foram
+   mantidos exatamente como o Thiago descreveu — não assumi que fosse
+   necessariamente coxa anterior/posterior; ele pode renomear direto no
+   cadastro se quiser mais precisão.
+
+---
+
+## Sessão 2026-09-29 (parte 2) — Nova seção Evolução: conversa com IA sobre questões não binárias [Autor: Claude]
+
+### O que foi feito
+
+- **Pesquisa preliminar, sem implementar**: opções de transcrição de áudio
+  offline/local (Whisper, whisper.cpp, Vosk, SpeechRecognizer do Android,
+  "Myna" do Ubuntu 26) como alternativa à Gemini — nenhuma decisão tomada,
+  nenhum código mudou.
+- **Discussão, sem implementar**: trocar o link de afiliado do Buscapé
+  (`lib/prices/buscape.ts:131-151`, `/lead?oid=`) pelo link direto da loja.
+  Identifiquei que isso geraria clique pago fantasma cobrado da loja sem
+  tráfego real (fraude de afiliado) — o Thiago ainda não decidiu se quer
+  isso mesmo assim.
+- **Construída a seção Evolução** (`/evolucao`) — acompanhamento de questões
+  pessoais/profissionais que não são tarefas binárias (ex.: avaliar uma
+  relação e decidir como agir), via conversa com a Gemini API. Passou por
+  duas versões nesta mesma sessão:
+  - **v1** (descartada): tópico criado num formulário (título + descrição),
+    botão global "Classificar e analisar agora" fazia tudo de uma vez.
+  - **v2** (a que ficou, pedido do Thiago): chat em vez de formulário — a
+    primeira mensagem já cria o tópico (a IA propõe o título sozinha), a
+    conversa continua na mesma seção, e cada mensagem enviada faz a IA
+    responder e atualizar uma memória compacta (resumo curto + critérios
+    binários tipo "gera resultado real?" true/false, reavaliados — nunca
+    recriados — a cada rodada, pra medir evolução de verdade). A conversa em
+    si nunca é salva, só a memória.
+  - **Correções depois do 1º teste real do Thiago na tela**: (1) mandar
+    mensagem estava lento porque toda mensagem disparava a leitura do
+    diário inteiro antes de responder — separei em duas ações: mandar
+    mensagem (sempre rápido) e "Atualizar com o diário" (botão à parte, só
+    ele lê o diário); (2) bug de layout que travava clique e digitação — o
+    painel de chat não tinha altura definida e colapsava a zero, corrigido
+    com altura fixa `h-[calc(100dvh-56px)]` (mesmo padrão de
+    `app/compras/page.tsx`); (3) selo do modelo Gemini usado voltou a
+    aparecer no cabeçalho do tópico (tinha se perdido na reescrita pro chat).
+  - **Decisão de arquitetura confirmada**: o Thiago pediu que ela lesse o
+    diário sozinha ao abrir a tela, sem precisar clicar em nada — recusei
+    por quebrar a regra imutável do projeto ("toda chamada à Gemini é
+    manual, nunca automática", `ARCHITECTURE.md:4-6`). Ficou como botão de
+    1 clique.
+
+Arquivos novos: `lib/events/evolucao-store.ts` (+ teste),
+`lib/insights/gemini-evolucao.ts` (+ teste), `app/evolucao/page.tsx`.
+Arquivos alterados: `lib/events/types.ts` (6 eventos novos:
+`evolucao_topico_criado/renomeado/arquivado/reaberto`,
+`evolucao_entrada_classificada`, `evolucao_rodada_registrada`),
+`components/top-tabs.tsx` (nova aba "Evolução"), `ARCHITECTURE.md` (nova
+exceção de zero-knowledge).
+
+### Estado de verificação
+
+- 243 testes passando, lint limpo, `next build`/TypeScript ok, `/evolucao`
+  prerenderizada como página estática (export continua íntegro).
+- **Testado na tela pelo Thiago**: sim — achou os dois bugs reais (lentidão
+  e clique travado) corrigidos depois. As correções em si **só passaram por
+  teste automatizado até agora**, ainda não foram confirmadas na tela.
+
+### Pendências
+
+1. Thiago precisa confirmar na tela se clique/digitação e a lentidão foram
+   resolvidos de verdade.
+2. Chave da Gemini gratuita vs. paga (tier sem uso de dados pra treino) —
+   fora de escopo por pedido explícito; Thiago já sabe que a assinatura
+   Gemini Pro pessoal (Google AI Pro) não resolve isso sozinha.
+3. Link de afiliado do Buscapé — decisão em aberto (ver acima).
+4. Transcrição de áudio offline — pesquisa feita, sem decisão nem
+   implementação.
+
+---
+
 ## Sessão 2026-09-29 — Credenciais do Google + teste real da sincronização [Autor: Claude]
 
 ### O que foi feito

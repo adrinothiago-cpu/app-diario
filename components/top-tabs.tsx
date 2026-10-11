@@ -14,6 +14,8 @@ const TABS = [
   { href: "/", label: "Início" },
   { href: "/diario", label: "Diário" },
   { href: "/metricas", label: "Métricas" },
+  { href: "/evolucao", label: "Evolução" },
+  { href: "/treino", label: "Treino" },
   { href: "/tarefas", label: "Tarefas" },
   { href: "/compras", label: "Compras" },
   { href: "/auditoria", label: "Auditoria" },

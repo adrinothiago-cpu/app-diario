@@ -32,7 +32,8 @@ export interface GeminiInteractionResult {
 
 export type InteractionInputBlock =
   | { type: "text"; text: string }
-  | { type: "audio"; data: string; mime_type: string };
+  | { type: "audio"; data: string; mime_type: string }
+  | { type: "image"; data: string; mime_type: string };
 
 /** Ferramenta de busca do Google — grounding com resultados reais da web (ver `lib/insights/gemini-price-search.ts`). */
 export type InteractionTool = { type: "google_search" };
