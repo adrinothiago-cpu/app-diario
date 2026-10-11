@@ -29,6 +29,15 @@ no topo. Regras permanentes ficam no `ARCHITECTURE.md`; aqui fica o "porquê" e 
   - `app/treino/page.tsx`: interface móvel reativa unificada com câmera, áudio, chat e abas de histórico/planos.
 - Validação: 283 testes passando no Vitest, lint zerado, build estático do Next.js bem-sucedido, sincronizado com Capacitor, APK compilado via Gradle e instalado com sucesso no Samsung Galaxy S25 Ultra via ADB.
 
+### ⚠️ Pendência Crítica para a Próxima Sessão (Lembrar o Thiago de imediato)
+- **Push pendente (commit `dc916c5`)**: O commit com todas as mudanças do Treinador e da seção Treino já foi criado localmente no branch `main`.
+- **Erro de autenticação no `gh`**: Ao tentar fazer o `gh auth login -h github.com`, o navegador tentou abrir dentro da caixa isolada e falhou com erro de pipe/zygote (`Failed sending zygote boot message: Pipe quebrado (32)`).
+- **Como resolver na próxima sessão**:
+  - O Thiago precisa rodar a autenticação com token manual pelo terminal pessoal dele:
+    `gh auth login -h github.com -p https -w` (ou autenticar via token pessoal com `gh auth login --with-token`)
+  - Em seguida, rodar `git push origin main`.
+- **Aviso obrigatório para a IA na próxima sessão**: Assim que abrir a sessão (com resume ou nova conversa), lembrar o Thiago logo na primeira mensagem sobre este push pendente e a reautenticação do GitHub CLI.
+
 ---
 
 ## Sessão 2026-09-30 — Nova seção Treino: rodízio ABC com IA gerando o plano e acompanhando a sessão [Autor: Claude]
